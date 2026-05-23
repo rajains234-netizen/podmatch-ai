@@ -31,11 +31,12 @@ export default function Home() {
           </Button>
 
           <Button
+            asChild
             size="lg"
             variant="outline"
             className="border-slate-700 bg-transparent text-white hover:bg-slate-900"
           >
-            View demo report
+            <Link href="/report">View demo report</Link>
           </Button>
         </div>
 
