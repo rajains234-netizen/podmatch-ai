@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { FileCheck2, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { label: "Home", href: "/" },
@@ -13,7 +15,44 @@ const navItems = [
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      setUser(user);
+      setAuthLoading(false);
+    }
+
+    loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase.auth]);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setUser(null);
+    setMobileMenuOpen(false);
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 text-white backdrop-blur">
@@ -22,7 +61,6 @@ export function SiteHeader() {
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400 text-slate-950">
             <FileCheck2 className="h-5 w-5" />
           </div>
-
           <div>
             <p className="text-sm font-bold leading-none">PODMatch AI</p>
             <p className="mt-1 text-xs text-slate-400">Freight billing review</p>
@@ -49,7 +87,29 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="hidden justify-self-end md:block" />
+        <div className="hidden items-center gap-3 justify-self-end md:flex">
+          {!authLoading && user ? (
+            <>
+              <span className="max-w-48 truncate text-xs text-slate-400">
+                {user.email}
+              </span>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
+              >
+                Sign out
+              </button>
+            </>
+          ) : !authLoading ? (
+            <Link
+              href="/login"
+              className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+            >
+              Sign in
+            </Link>
+          ) : null}
+        </div>
 
         <button
           type="button"
@@ -82,6 +142,31 @@ export function SiteHeader() {
                 </Link>
               );
             })}
+
+            <div className="mt-3 border-t border-slate-800 pt-3">
+              {!authLoading && user ? (
+                <div className="space-y-3">
+                  <p className="truncate px-4 text-xs text-slate-400">
+                    Signed in as {user.email}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="w-full rounded-2xl border border-slate-700 px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              ) : !authLoading ? (
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+                >
+                  Sign in
+                </Link>
+              ) : null}
+            </div>
           </nav>
         </div>
       )}
