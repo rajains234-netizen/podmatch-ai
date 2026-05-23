@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowRight, FileCheck2, AlertTriangle, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,9 +23,11 @@ export default function Home() {
         </p>
 
         <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-          <Button size="lg" className="bg-blue-500 text-white hover:bg-blue-600">
-            Upload shipment packet
-            <ArrowRight className="ml-2 h-4 w-4" />
+          <Button asChild size="lg" className="bg-blue-500 text-white hover:bg-blue-600">
+            <Link href="/upload">
+              Upload shipment packet
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
           </Button>
 
           <Button
