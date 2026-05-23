@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   FileText,
+  ShieldAlert,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -89,6 +90,7 @@ export default function UploadPage() {
   const [reviewStarted, setReviewStarted] = useState(false);
 
   const hasFiles = selectedFiles.length > 0;
+  const highPriorityCount = blockers.filter((blocker) => blocker.severity === "High").length;
 
   function addFiles(files: FileList | File[]) {
     const incomingFiles = Array.from(files);
@@ -321,44 +323,75 @@ export default function UploadPage() {
         </section>
 
         {reviewStarted && (
-          <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
-            <div className="mb-5 flex items-center gap-3">
-              <AlertTriangle className="h-6 w-6 text-amber-300" />
-              <h2 className="text-2xl font-semibold">Billing blockers found</h2>
-            </div>
+          <>
+            <section className="mt-6 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-6 shadow-2xl">
+              <div className="mb-5 flex items-center gap-3">
+                <ShieldAlert className="h-6 w-6 text-cyan-300" />
+                <h2 className="text-2xl font-semibold">Review summary</h2>
+              </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              {blockers.map((blocker) => (
-                <div
-                  key={blocker.title}
-                  className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"
-                >
-                  <div className="mb-3 inline-flex rounded-full bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-300">
-                    {blocker.severity} priority
-                  </div>
-                  <h3 className="font-semibold text-white">{blocker.title}</h3>
-                  <p className="mt-2 text-sm text-slate-400">{blocker.description}</p>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+                  <p className="text-sm text-slate-400">Documents reviewed</p>
+                  <p className="mt-2 text-3xl font-bold text-white">{selectedFiles.length}</p>
                 </div>
-              ))}
-            </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/report"
-                className="rounded-full bg-cyan-400 px-6 py-3 text-center font-semibold text-slate-950 hover:bg-cyan-300"
-              >
-                View full demo report
-              </Link>
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+                  <p className="text-sm text-slate-400">Billing blockers</p>
+                  <p className="mt-2 text-3xl font-bold text-amber-300">{blockers.length}</p>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setReviewStarted(false)}
-                className="rounded-full border border-slate-700 px-6 py-3 font-semibold text-slate-300 hover:border-cyan-400 hover:text-cyan-300"
-              >
-                Reset mock review
-              </button>
-            </div>
-          </section>
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+                  <p className="text-sm text-slate-400">High priority</p>
+                  <p className="mt-2 text-3xl font-bold text-red-300">{highPriorityCount}</p>
+                </div>
+
+                <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
+                  <p className="text-sm text-red-200">Payment readiness</p>
+                  <p className="mt-2 text-3xl font-bold text-red-100">Blocked</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
+              <div className="mb-5 flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-amber-300" />
+                <h2 className="text-2xl font-semibold">Billing blockers found</h2>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                {blockers.map((blocker) => (
+                  <div
+                    key={blocker.title}
+                    className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"
+                  >
+                    <div className="mb-3 inline-flex rounded-full bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-300">
+                      {blocker.severity} priority
+                    </div>
+                    <h3 className="font-semibold text-white">{blocker.title}</h3>
+                    <p className="mt-2 text-sm text-slate-400">{blocker.description}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/report"
+                  className="rounded-full bg-cyan-400 px-6 py-3 text-center font-semibold text-slate-950 hover:bg-cyan-300"
+                >
+                  View full demo report
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => setReviewStarted(false)}
+                  className="rounded-full border border-slate-700 px-6 py-3 font-semibold text-slate-300 hover:border-cyan-400 hover:text-cyan-300"
+                >
+                  Reset mock review
+                </button>
+              </div>
+            </section>
+          </>
         )}
       </div>
     </main>
