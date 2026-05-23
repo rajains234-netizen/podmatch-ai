@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from "react";
 import {
   AlertTriangle,
   CheckCircle2,
   FileText,
+  Loader2,
   ShieldAlert,
   Trash2,
   UploadCloud,
@@ -85,12 +92,32 @@ function fileMatchesDocumentType(fileName: string, keywords: string[]) {
 
 export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const reviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
   const [reviewStarted, setReviewStarted] = useState(false);
 
   const hasFiles = selectedFiles.length > 0;
   const highPriorityCount = blockers.filter((blocker) => blocker.severity === "High").length;
+
+  useEffect(() => {
+    return () => {
+      if (reviewTimerRef.current) {
+        clearTimeout(reviewTimerRef.current);
+      }
+    };
+  }, []);
+
+  function clearPendingReview() {
+    if (reviewTimerRef.current) {
+      clearTimeout(reviewTimerRef.current);
+      reviewTimerRef.current = null;
+    }
+
+    setIsReviewing(false);
+  }
 
   function addFiles(files: FileList | File[]) {
     const incomingFiles = Array.from(files);
@@ -108,6 +135,7 @@ export default function UploadPage() {
       return [...currentFiles, ...newFiles];
     });
 
+    clearPendingReview();
     setReviewStarted(false);
   }
 
@@ -132,12 +160,31 @@ export default function UploadPage() {
     setSelectedFiles((currentFiles) =>
       currentFiles.filter((file) => file.name !== fileName)
     );
+
+    clearPendingReview();
     setReviewStarted(false);
   }
 
   function clearFiles() {
     setSelectedFiles([]);
+    clearPendingReview();
     setReviewStarted(false);
+  }
+
+  function runMockReview() {
+    if (!hasFiles) {
+      return;
+    }
+
+    clearPendingReview();
+    setReviewStarted(false);
+    setIsReviewing(true);
+
+    reviewTimerRef.current = setTimeout(() => {
+      setIsReviewing(false);
+      setReviewStarted(true);
+      reviewTimerRef.current = null;
+    }, 1200);
   }
 
   return (
@@ -282,11 +329,18 @@ export default function UploadPage() {
 
             <button
               type="button"
-              disabled={!hasFiles}
-              onClick={() => setReviewStarted(true)}
-              className="mt-6 w-full rounded-full bg-blue-500 px-6 py-3 font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+              disabled={!hasFiles || isReviewing}
+              onClick={runMockReview}
+              className="mt-6 flex w-full items-center justify-center rounded-full bg-blue-500 px-6 py-3 font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
             >
-              Run mock review
+              {isReviewing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analyzing packet...
+                </>
+              ) : (
+                "Run mock review"
+              )}
             </button>
           </div>
 
@@ -296,12 +350,32 @@ export default function UploadPage() {
               <h2 className="text-2xl font-semibold">Mock extraction</h2>
             </div>
 
-            {!reviewStarted && (
+            {!reviewStarted && !isReviewing && (
               <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
                 <p className="text-sm text-slate-300">
                   Select shipment documents and click{" "}
                   <span className="font-semibold text-cyan-300">Run mock review</span> to preview
                   extracted billing fields.
+                </p>
+              </div>
+            )}
+
+            {isReviewing && (
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5">
+                <div className="mb-4 flex items-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-cyan-300" />
+                  <p className="font-semibold text-cyan-100">Analyzing freight packet...</p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="h-3 w-full animate-pulse rounded-full bg-slate-800" />
+                  <div className="h-3 w-5/6 animate-pulse rounded-full bg-slate-800" />
+                  <div className="h-3 w-2/3 animate-pulse rounded-full bg-slate-800" />
+                </div>
+
+                <p className="mt-4 text-sm text-slate-300">
+                  Matching documents, checking invoice totals, scanning for POD signatures, and
+                  validating accessorial support.
                 </p>
               </div>
             )}
