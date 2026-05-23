@@ -17,8 +17,8 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 text-white backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-3">
+      <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-center px-6 py-4">
+        <Link href="/" className="flex items-center gap-3 justify-self-start">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400 text-slate-950">
             <FileCheck2 className="h-5 w-5" />
           </div>
@@ -29,7 +29,7 @@ export function SiteHeader() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-2 md:flex">
+        <nav className="hidden items-center gap-2 justify-self-center md:flex">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
 
@@ -49,19 +49,12 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
-          <Link
-            href="/upload"
-            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-cyan-400 hover:text-cyan-300"
-          >
-            Upload docs
-          </Link>
-        </div>
+        <div className="hidden justify-self-end md:block" />
 
         <button
           type="button"
           onClick={() => setMobileMenuOpen((open) => !open)}
-          className="rounded-xl border border-slate-800 p-2 text-slate-300 hover:border-cyan-400 hover:text-cyan-300 md:hidden"
+          className="justify-self-end rounded-xl border border-slate-800 p-2 text-slate-300 hover:border-cyan-400 hover:text-cyan-300 md:hidden"
           aria-label="Toggle navigation menu"
         >
           {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -89,14 +82,6 @@ export function SiteHeader() {
                 </Link>
               );
             })}
-
-            <Link
-              href="/upload"
-              onClick={() => setMobileMenuOpen(false)}
-              className="rounded-2xl border border-cyan-400/40 px-4 py-3 text-sm font-semibold text-cyan-300"
-            >
-              Upload docs
-            </Link>
           </nav>
         </div>
       )}
