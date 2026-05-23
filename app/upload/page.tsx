@@ -18,6 +18,70 @@ import {
   UploadCloud,
 } from "lucide-react";
 
+type DemoFile = {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  lastModified: number;
+  isSample?: boolean;
+};
+
+const maxFileSize = 10 * 1024 * 1024;
+
+const acceptedExtensions = [".pdf", ".png", ".jpg", ".jpeg", ".txt", ".doc", ".docx"];
+
+const sampleFiles: DemoFile[] = [
+  {
+    id: "sample-rate-confirmation",
+    name: "PM-10482-rate-confirmation.pdf",
+    size: 842000,
+    type: "application/pdf",
+    lastModified: 1711123200000,
+    isSample: true,
+  },
+  {
+    id: "sample-invoice",
+    name: "PM-10482-invoice.pdf",
+    size: 526000,
+    type: "application/pdf",
+    lastModified: 1711123200000,
+    isSample: true,
+  },
+  {
+    id: "sample-pod",
+    name: "PM-10482-pod-missing-signature.jpg",
+    size: 1190000,
+    type: "image/jpeg",
+    lastModified: 1711123200000,
+    isSample: true,
+  },
+  {
+    id: "sample-bol",
+    name: "PM-10482-bol.pdf",
+    size: 611000,
+    type: "application/pdf",
+    lastModified: 1711123200000,
+    isSample: true,
+  },
+  {
+    id: "sample-lumper",
+    name: "PM-10482-lumper-receipt.txt",
+    size: 72000,
+    type: "text/plain",
+    lastModified: 1711123200000,
+    isSample: true,
+  },
+  {
+    id: "sample-detention",
+    name: "PM-10482-detention-evidence.docx",
+    size: 238000,
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    lastModified: 1711123200000,
+    isSample: true,
+  },
+];
+
 const documentTypes = [
   {
     name: "Rate confirmation",
@@ -72,6 +136,63 @@ const blockers = [
   },
 ];
 
+function getFileId(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function getFileExtension(fileName: string) {
+  const extension = fileName.toLowerCase().match(/\.[^.]+$/);
+  return extension ? extension[0] : "";
+}
+
+function isAcceptedFile(fileName: string) {
+  return acceptedExtensions.includes(getFileExtension(fileName));
+}
+
+function getFileKind(fileName: string) {
+  const extension = getFileExtension(fileName);
+
+  if (extension === ".pdf") {
+    return "PDF";
+  }
+
+  if ([".png", ".jpg", ".jpeg"].includes(extension)) {
+    return "IMAGE";
+  }
+
+  if ([".doc", ".docx"].includes(extension)) {
+    return "DOC";
+  }
+
+  if (extension === ".txt") {
+    return "TXT";
+  }
+
+  return "FILE";
+}
+
+function getFileBadgeClass(fileName: string) {
+  const kind = getFileKind(fileName);
+
+  if (kind === "PDF") {
+    return "bg-red-400/10 text-red-300";
+  }
+
+  if (kind === "IMAGE") {
+    return "bg-purple-400/10 text-purple-300";
+  }
+
+  if (kind === "DOC") {
+    return "bg-blue-400/10 text-blue-300";
+  }
+
+  if (kind === "TXT") {
+    return "bg-slate-700 text-slate-300";
+  }
+
+  return "bg-slate-800 text-slate-400";
+}
+
 function formatFileSize(size: number) {
   if (size < 1024) {
     return `${size} B`;
@@ -94,7 +215,8 @@ export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const reviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<DemoFile[]>([]);
+  const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewStarted, setReviewStarted] = useState(false);
@@ -121,20 +243,44 @@ export default function UploadPage() {
 
   function addFiles(files: FileList | File[]) {
     const incomingFiles = Array.from(files);
+    const validFiles: DemoFile[] = [];
+    const errors: string[] = [];
+
+    incomingFiles.forEach((file) => {
+      if (!isAcceptedFile(file.name)) {
+        errors.push(`${file.name} was skipped. Supported types: PDF, PNG, JPG, TXT, DOC, DOCX.`);
+        return;
+      }
+
+      if (file.size > maxFileSize) {
+        errors.push(`${file.name} was skipped. Max file size is 10 MB.`);
+        return;
+      }
+
+      validFiles.push({
+        id: getFileId(file),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+      });
+    });
 
     setSelectedFiles((currentFiles) => {
-      const existingKeys = new Set(
-        currentFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
-      );
-
-      const newFiles = incomingFiles.filter((file) => {
-        const fileKey = `${file.name}-${file.size}-${file.lastModified}`;
-        return !existingKeys.has(fileKey);
-      });
+      const existingIds = new Set(currentFiles.map((file) => file.id));
+      const newFiles = validFiles.filter((file) => !existingIds.has(file.id));
 
       return [...currentFiles, ...newFiles];
     });
 
+    setFileErrors(errors);
+    clearPendingReview();
+    setReviewStarted(false);
+  }
+
+  function loadSamplePacket() {
+    setSelectedFiles(sampleFiles);
+    setFileErrors([]);
     clearPendingReview();
     setReviewStarted(false);
   }
@@ -156,17 +302,19 @@ export default function UploadPage() {
     }
   }
 
-  function removeFile(fileName: string) {
+  function removeFile(fileId: string) {
     setSelectedFiles((currentFiles) =>
-      currentFiles.filter((file) => file.name !== fileName)
+      currentFiles.filter((file) => file.id !== fileId)
     );
 
+    setFileErrors([]);
     clearPendingReview();
     setReviewStarted(false);
   }
 
   function clearFiles() {
     setSelectedFiles([]);
+    setFileErrors([]);
     clearPendingReview();
     setReviewStarted(false);
   }
@@ -188,7 +336,7 @@ export default function UploadPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-white">
+    <main className="bg-slate-950 px-6 py-10 text-white">
       <div className="mx-auto max-w-6xl">
         <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-center">
           <div>
@@ -227,26 +375,58 @@ export default function UploadPage() {
               <UploadCloud className="mb-4 h-12 w-12 text-cyan-300" />
               <h2 className="text-2xl font-semibold">Drop freight documents here</h2>
               <p className="mt-3 max-w-md text-slate-400">
-                Upload PDFs, images, or document files. This demo stores them only in the browser
-                and uses mock analysis results.
+                Upload PDFs, images, text files, or Word documents. This demo stores them only in
+                the browser and uses mock analysis results.
               </p>
 
               <input
                 ref={fileInputRef}
                 type="file"
                 multiple
+                accept={acceptedExtensions.join(",")}
                 className="hidden"
                 onChange={handleFileInputChange}
               />
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-6 rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
-              >
-                Choose files
-              </button>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
+                >
+                  Choose files
+                </button>
+
+                <button
+                  type="button"
+                  onClick={loadSamplePacket}
+                  className="rounded-full border border-slate-700 px-6 py-3 font-semibold text-slate-200 hover:border-cyan-400 hover:text-cyan-300"
+                >
+                  Load sample packet
+                </button>
+              </div>
+
+              <p className="mt-4 text-xs text-slate-500">
+                Accepted: PDF, PNG, JPG, TXT, DOC, DOCX. Max 10 MB per file.
+              </p>
             </div>
+
+            {fileErrors.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-300" />
+                  <p className="font-semibold text-red-100">Some files were not added</p>
+                </div>
+
+                <div className="space-y-1">
+                  {fileErrors.map((error) => (
+                    <p key={error} className="text-sm text-red-100/80">
+                      {error}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="mt-6 flex items-center justify-between gap-4">
               <div>
@@ -269,24 +449,47 @@ export default function UploadPage() {
               )}
             </div>
 
+            {!hasFiles && (
+              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+                <p className="text-sm text-slate-300">
+                  No documents selected yet. Choose files or load the sample packet to preview the
+                  PODMatch AI review flow.
+                </p>
+              </div>
+            )}
+
             {hasFiles && (
               <div className="mt-4 space-y-3">
                 {selectedFiles.map((file) => (
                   <div
-                    key={`${file.name}-${file.size}-${file.lastModified}`}
+                    key={file.id}
                     className="flex items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-4"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <FileText className="h-5 w-5 flex-shrink-0 text-cyan-300" />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white">{file.name}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-medium text-white">{file.name}</p>
+                          <span
+                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${getFileBadgeClass(
+                              file.name
+                            )}`}
+                          >
+                            {getFileKind(file.name)}
+                          </span>
+                          {file.isSample && (
+                            <span className="rounded-full bg-cyan-400/10 px-2 py-1 text-[10px] font-bold text-cyan-300">
+                              SAMPLE
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-500">{formatFileSize(file.size)}</p>
                       </div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => removeFile(file.name)}
+                      onClick={() => removeFile(file.id)}
                       className="rounded-full p-2 text-slate-500 hover:bg-red-400/10 hover:text-red-300"
                       aria-label={`Remove ${file.name}`}
                     >
