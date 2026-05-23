@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -8,9 +11,10 @@ import {
   FileCheck2,
   FileText,
   ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 
-const loadSummary = [
+const blockedLoadSummary = [
   { label: "Load number", value: "PM-10482" },
   { label: "Carrier", value: "Atlas Freight Lines" },
   { label: "Broker", value: "Northstar Logistics" },
@@ -19,7 +23,16 @@ const loadSummary = [
   { label: "Delivery date", value: "Mar 22, 2026" },
 ];
 
-const documentsReviewed = [
+const cleanLoadSummary = [
+  { label: "Load number", value: "PM-20419" },
+  { label: "Carrier", value: "Blue Ridge Transport" },
+  { label: "Broker", value: "Summit Freight Group" },
+  { label: "Pickup", value: "Phoenix, AZ" },
+  { label: "Delivery", value: "Denver, CO" },
+  { label: "Delivery date", value: "Apr 04, 2026" },
+];
+
+const blockedDocumentsReviewed = [
   { name: "Rate confirmation", status: "Reviewed", detail: "Base rate: USD 2,450.00" },
   { name: "Invoice", status: "Reviewed", detail: "Invoice total: USD 2,675.00" },
   { name: "POD", status: "Issue found", detail: "Receiver signature missing" },
@@ -28,7 +41,16 @@ const documentsReviewed = [
   { name: "Detention evidence", status: "Not required", detail: "No detention charge detected" },
 ];
 
-const extractedValues = [
+const cleanDocumentsReviewed = [
+  { name: "Rate confirmation", status: "Reviewed", detail: "Base rate: USD 3,100.00" },
+  { name: "Invoice", status: "Reviewed", detail: "Invoice total: USD 3,100.00" },
+  { name: "POD", status: "Reviewed", detail: "Receiver signature detected" },
+  { name: "BOL", status: "Reviewed", detail: "Load number matched" },
+  { name: "Lumper receipt", status: "Not required", detail: "No lumper charge detected" },
+  { name: "Detention evidence", status: "Not required", detail: "No detention charge detected" },
+];
+
+const blockedExtractedValues = [
   { label: "Rate confirmation total", value: "USD 2,450.00" },
   { label: "Invoice total", value: "USD 2,675.00" },
   { label: "Variance", value: "USD 225.00" },
@@ -37,7 +59,16 @@ const extractedValues = [
   { label: "Lumper receipt", value: "Missing" },
 ];
 
-const blockers = [
+const cleanExtractedValues = [
+  { label: "Rate confirmation total", value: "USD 3,100.00" },
+  { label: "Invoice total", value: "USD 3,100.00" },
+  { label: "Variance", value: "USD 0.00" },
+  { label: "POD signed", value: "Yes" },
+  { label: "Lumper charge", value: "None" },
+  { label: "Lumper receipt", value: "Not required" },
+];
+
+const blockedBlockers = [
   {
     title: "Missing signed POD",
     severity: "High",
@@ -62,11 +93,18 @@ const blockers = [
   },
 ];
 
-const nextActions = [
+const blockedNextActions = [
   "Upload signed POD.",
   "Attach lumper receipt for USD 225.00 charge.",
   "Confirm revised total with broker before submitting invoice.",
   "Re-run PODMatch review after missing support is added.",
+];
+
+const cleanNextActions = [
+  "Packet is ready for billing submission.",
+  "Send invoice package to broker or factoring partner.",
+  "Archive matched documents with load record.",
+  "Monitor payment status after submission.",
 ];
 
 function getStatusClass(status: string) {
@@ -94,6 +132,17 @@ function getSeverityClass(severity: string) {
 }
 
 export default function ReportPage() {
+  const [mode, setMode] = useState<"blocked" | "clean">("blocked");
+
+  const isBlocked = mode === "blocked";
+
+  const loadSummary = isBlocked ? blockedLoadSummary : cleanLoadSummary;
+  const documentsReviewed = isBlocked ? blockedDocumentsReviewed : cleanDocumentsReviewed;
+  const extractedValues = isBlocked ? blockedExtractedValues : cleanExtractedValues;
+  const blockers = isBlocked ? blockedBlockers : [];
+  const nextActions = isBlocked ? blockedNextActions : cleanNextActions;
+  const highPriorityCount = blockers.filter((blocker) => blocker.severity === "High").length;
+
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-white">
       <div className="mx-auto max-w-6xl">
@@ -115,16 +164,104 @@ export default function ReportPage() {
             </p>
           </div>
 
-          <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-5 text-left">
+          <div
+            className={`rounded-3xl border p-5 text-left ${
+              isBlocked
+                ? "border-red-500/30 bg-red-500/10"
+                : "border-emerald-500/30 bg-emerald-500/10"
+            }`}
+          >
             <div className="flex items-center gap-3">
-              <ShieldAlert className="h-8 w-8 text-red-300" />
+              {isBlocked ? (
+                <ShieldAlert className="h-8 w-8 text-red-300" />
+              ) : (
+                <ShieldCheck className="h-8 w-8 text-emerald-300" />
+              )}
+
               <div>
-                <p className="text-sm text-red-200">Payment readiness</p>
-                <p className="text-2xl font-bold text-red-100">Blocked</p>
+                <p className={isBlocked ? "text-sm text-red-200" : "text-sm text-emerald-200"}>
+                  Payment readiness
+                </p>
+                <p className={isBlocked ? "text-2xl font-bold text-red-100" : "text-2xl font-bold text-emerald-100"}>
+                  {isBlocked ? "Blocked" : "Ready"}
+                </p>
               </div>
             </div>
           </div>
         </div>
+
+        <section className="mb-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-4 shadow-2xl">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+            <div>
+              <h2 className="text-lg font-semibold">Demo mode</h2>
+              <p className="text-sm text-slate-400">
+                Switch between a blocked shipment packet and a clean, ready-to-bill packet.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 rounded-full bg-slate-950 p-1">
+              <button
+                type="button"
+                onClick={() => setMode("blocked")}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                  isBlocked
+                    ? "bg-red-500 text-white"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                Blocked packet
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMode("clean")}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                  !isBlocked
+                    ? "bg-emerald-500 text-white"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                Clean packet
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-6 grid gap-4 md:grid-cols-4">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5 shadow-2xl">
+            <p className="text-sm text-slate-400">Documents reviewed</p>
+            <p className="mt-2 text-3xl font-bold text-white">{documentsReviewed.length}</p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5 shadow-2xl">
+            <p className="text-sm text-slate-400">Billing blockers</p>
+            <p className={`mt-2 text-3xl font-bold ${isBlocked ? "text-amber-300" : "text-emerald-300"}`}>
+              {blockers.length}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5 shadow-2xl">
+            <p className="text-sm text-slate-400">High priority</p>
+            <p className={`mt-2 text-3xl font-bold ${isBlocked ? "text-red-300" : "text-emerald-300"}`}>
+              {highPriorityCount}
+            </p>
+          </div>
+
+          <div
+            className={`rounded-3xl border p-5 shadow-2xl ${
+              isBlocked
+                ? "border-red-500/30 bg-red-500/10"
+                : "border-emerald-500/30 bg-emerald-500/10"
+            }`}
+          >
+            <p className={isBlocked ? "text-sm text-red-200" : "text-sm text-emerald-200"}>
+              Final status
+            </p>
+            <p className={isBlocked ? "mt-2 text-3xl font-bold text-red-100" : "mt-2 text-3xl font-bold text-emerald-100"}>
+              {isBlocked ? "Blocked" : "Ready"}
+            </p>
+          </div>
+        </section>
 
         <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
@@ -193,39 +330,61 @@ export default function ReportPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
-          <div className="mb-5 flex items-center gap-3">
-            <AlertTriangle className="h-6 w-6 text-amber-300" />
-            <h2 className="text-2xl font-semibold">Billing blockers</h2>
-          </div>
+        {isBlocked ? (
+          <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
+            <div className="mb-5 flex items-center gap-3">
+              <AlertTriangle className="h-6 w-6 text-amber-300" />
+              <h2 className="text-2xl font-semibold">Billing blockers</h2>
+            </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            {blockers.map((blocker) => (
-              <div
-                key={blocker.title}
-                className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"
-              >
-                <span
-                  className={`mb-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getSeverityClass(
-                    blocker.severity
-                  )}`}
+            <div className="grid gap-4 lg:grid-cols-3">
+              {blockers.map((blocker) => (
+                <div
+                  key={blocker.title}
+                  className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"
                 >
-                  {blocker.severity} priority
-                </span>
+                  <span
+                    className={`mb-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getSeverityClass(
+                      blocker.severity
+                    )}`}
+                  >
+                    {blocker.severity} priority
+                  </span>
 
-                <h3 className="font-semibold text-white">{blocker.title}</h3>
-                <p className="mt-3 text-sm text-slate-400">{blocker.description}</p>
+                  <h3 className="font-semibold text-white">{blocker.title}</h3>
+                  <p className="mt-3 text-sm text-slate-400">{blocker.description}</p>
 
-                <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
-                    Recommended fix
-                  </p>
-                  <p className="mt-2 text-sm text-slate-200">{blocker.recommendation}</p>
+                  <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                      Recommended fix
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">{blocker.recommendation}</p>
+                  </div>
                 </div>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <section className="mt-6 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-6 shadow-2xl">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="mb-3 flex items-center gap-3">
+                  <ShieldCheck className="h-7 w-7 text-emerald-300" />
+                  <h2 className="text-2xl font-semibold text-emerald-100">No billing blockers found</h2>
+                </div>
+                <p className="max-w-3xl text-sm text-emerald-100/80">
+                  The invoice matches the rate confirmation, the POD appears signed, and no unsupported
+                  accessorials were detected. This packet is ready for billing submission.
+                </p>
               </div>
-            ))}
-          </div>
-        </section>
+
+              <div className="rounded-2xl bg-emerald-400/10 px-5 py-4 text-center">
+                <p className="text-sm text-emerald-200">Readiness score</p>
+                <p className="text-3xl font-bold text-emerald-100">100%</p>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
           <div className="mb-5 flex items-center gap-3">
@@ -247,7 +406,7 @@ export default function ReportPage() {
               href="/upload"
               className="rounded-full bg-cyan-400 px-6 py-3 text-center font-semibold text-slate-950 hover:bg-cyan-300"
             >
-              Upload missing documents
+              Upload another packet
             </Link>
 
             <Link
