@@ -25,6 +25,15 @@ type DocumentType =
   | "remittance"
   | "other";
 
+type WorkspaceRow = {
+  organization_id: string;
+  organization_name: string;
+  user_role: string;
+  organization_plan: string;
+  monthly_packet_limit: number;
+  packets_used_this_month: number;
+};
+
 function sanitizeFileName(fileName: string) {
   return fileName
     .replace(/[^a-zA-Z0-9._-]/g, "-")
@@ -110,9 +119,6 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
 
-  const requestedOrganizationId =
-    formData.get("organizationId") || formData.get("workspaceId");
-
   const files = formData
     .getAll("files")
     .filter((item): item is File => item instanceof File);
@@ -140,40 +146,33 @@ export async function POST(request: Request) {
     }
   }
 
-  let organizationQuery = supabase
-    .from("organization_members")
-    .select("organization_id, role, organizations(id, name, plan)")
-    .eq("user_id", user.id)
-    .limit(1);
+  /**
+   * Always ensure the authenticated user has a workspace/org.
+   * This fixes older users created before the organization schema existed.
+   */
+  const { data: workspaceData, error: workspaceError } = await supabase.rpc(
+    "ensure_user_workspace"
+  );
 
-  if (requestedOrganizationId && typeof requestedOrganizationId === "string") {
-    organizationQuery = supabase
-      .from("organization_members")
-      .select("organization_id, role, organizations(id, name, plan)")
-      .eq("user_id", user.id)
-      .eq("organization_id", requestedOrganizationId)
-      .limit(1);
-  }
-
-  const { data: memberships, error: membershipError } = await organizationQuery;
-
-  if (membershipError) {
+  if (workspaceError) {
     return NextResponse.json(
-      { error: membershipError.message },
+      { error: workspaceError.message },
       { status: 500 }
     );
   }
 
-  const membership = memberships?.[0];
+  const workspace = Array.isArray(workspaceData)
+    ? (workspaceData[0] as WorkspaceRow | undefined)
+    : undefined;
 
-  if (!membership) {
+  if (!workspace?.organization_id) {
     return NextResponse.json(
-      { error: "No organization found for this user." },
-      { status: 404 }
+      { error: "Unable to create or load organization for this user." },
+      { status: 500 }
     );
   }
 
-  const organizationId = membership.organization_id;
+  const organizationId = workspace.organization_id;
   const loadNumber = createLoadNumber();
 
   const { data: packet, error: packetError } = await supabase

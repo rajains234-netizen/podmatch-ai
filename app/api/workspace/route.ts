@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-type Organization = {
-  id: string;
-  name: string;
-  plan: string;
+type WorkspaceRow = {
+  organization_id: string;
+  organization_name: string;
+  user_role: string;
+  organization_plan: string;
   monthly_packet_limit: number;
   packets_used_this_month: number;
-};
-
-type Membership = {
-  organization_id: string;
-  role: string;
-  organizations: Organization | Organization[] | null;
 };
 
 export async function GET() {
@@ -27,57 +22,39 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: memberships, error: membershipError } = await supabase
-    .from("organization_members")
-    .select(
-      "organization_id, role, organizations(id, name, plan, monthly_packet_limit, packets_used_this_month)"
-    )
-    .eq("user_id", user.id)
-    .limit(1);
+  const { data, error } = await supabase.rpc("ensure_user_workspace");
 
-  if (membershipError) {
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const workspace = Array.isArray(data)
+    ? (data[0] as WorkspaceRow | undefined)
+    : undefined;
+
+  if (!workspace) {
     return NextResponse.json(
-      { error: membershipError.message },
+      { error: "Unable to create or load workspace." },
       { status: 500 }
-    );
-  }
-
-  const membership = memberships?.[0] as Membership | undefined;
-
-  if (!membership) {
-    return NextResponse.json(
-      { error: "No workspace found for this user." },
-      { status: 404 }
-    );
-  }
-
-  const organization = Array.isArray(membership.organizations)
-    ? membership.organizations[0]
-    : membership.organizations;
-
-  if (!organization) {
-    return NextResponse.json(
-      { error: "Organization not found." },
-      { status: 404 }
     );
   }
 
   return NextResponse.json({
     workspace: {
-      id: organization.id,
-      name: organization.name,
-      plan: organization.plan,
-      monthly_packet_limit: organization.monthly_packet_limit,
-      packets_used_this_month: organization.packets_used_this_month,
-      role: membership.role,
+      id: workspace.organization_id,
+      name: workspace.organization_name,
+      plan: workspace.organization_plan,
+      monthly_packet_limit: workspace.monthly_packet_limit,
+      packets_used_this_month: workspace.packets_used_this_month,
+      role: workspace.user_role,
     },
     organization: {
-      id: organization.id,
-      name: organization.name,
-      plan: organization.plan,
-      monthly_packet_limit: organization.monthly_packet_limit,
-      packets_used_this_month: organization.packets_used_this_month,
-      role: membership.role,
+      id: workspace.organization_id,
+      name: workspace.organization_name,
+      plan: workspace.organization_plan,
+      monthly_packet_limit: workspace.monthly_packet_limit,
+      packets_used_this_month: workspace.packets_used_this_month,
+      role: workspace.user_role,
     },
   });
 }

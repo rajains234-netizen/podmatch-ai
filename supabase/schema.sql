@@ -125,17 +125,9 @@ using (
   )
 );
 
-create policy "Members can view memberships"
+create policy "Users can view their own memberships"
 on public.organization_members for select
-using (
-  user_id = auth.uid()
-  or exists (
-    select 1 from public.organization_members om
-    where om.organization_id = organization_members.organization_id
-    and om.user_id = auth.uid()
-  )
-);
-
+using (user_id = auth.uid());
 -- =========================
 -- SHIPMENT PACKETS
 -- =========================
