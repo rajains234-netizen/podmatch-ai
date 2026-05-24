@@ -220,11 +220,33 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewStarted, setReviewStarted] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 
   const hasFiles = selectedFiles.length > 0;
   const highPriorityCount = blockers.filter((blocker) => blocker.severity === "High").length;
 
   useEffect(() => {
+    async function bootstrapWorkspace() {
+      try {
+        const response = await fetch("/api/workspace");
+
+        if (!response.ok) {
+          const payload = await response.json();
+          throw new Error(payload.error ?? "Failed to load workspace.");
+        }
+
+        const payload = await response.json();
+        setWorkspaceId(payload.workspace.id);
+      } catch (error) {
+        setWorkspaceError(
+          error instanceof Error ? error.message : "Failed to load workspace."
+        );
+      }
+    }
+
+    bootstrapWorkspace();
+
     return () => {
       if (reviewTimerRef.current) {
         clearTimeout(reviewTimerRef.current);
@@ -356,7 +378,19 @@ export default function UploadPage() {
             Back home
           </Link>
         </div>
-
+        {workspaceId ? (
+          <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+            Workspace connected: {workspaceId}
+          </div>
+        ) : workspaceError ? (
+          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+            Workspace error: {workspaceError}
+          </div>
+        ) : (
+          <div className="mb-6 rounded-2xl border border-slate-700 bg-slate-900 p-4 text-sm text-slate-300">
+            Connecting workspace...
+          </div>
+        )}
         <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
             <div
