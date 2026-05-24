@@ -1,6 +1,20 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+type Organization = {
+  id: string;
+  name: string;
+  plan: string;
+  monthly_packet_limit: number;
+  packets_used_this_month: number;
+};
+
+type Membership = {
+  organization_id: string;
+  role: string;
+  organizations: Organization | Organization[] | null;
+};
+
 export async function GET() {
   const supabase = await createClient();
 
@@ -10,62 +24,60 @@ export async function GET() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: existingWorkspace, error: existingWorkspaceError } = await supabase
-    .from("workspaces")
-    .select("id, name, owner_id, created_at")
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: memberships, error: membershipError } = await supabase
+    .from("organization_members")
+    .select(
+      "organization_id, role, organizations(id, name, plan, monthly_packet_limit, packets_used_this_month)"
+    )
+    .eq("user_id", user.id)
+    .limit(1);
 
-  if (existingWorkspaceError) {
+  if (membershipError) {
     return NextResponse.json(
-      { error: existingWorkspaceError.message },
+      { error: membershipError.message },
       { status: 500 }
     );
   }
 
-  if (existingWorkspace) {
-    return NextResponse.json({
-      workspace: existingWorkspace,
-      created: false,
-    });
-  }
+  const membership = memberships?.[0] as Membership | undefined;
 
-  const workspaceName =
-    user.email?.split("@")[0]
-      ? `${user.email.split("@")[0]}'s Workspace`
-      : "My Workspace";
-
-  const { data: newWorkspace, error: newWorkspaceError } = await supabase
-    .from("workspaces")
-    .insert({
-      owner_id: user.id,
-      name: workspaceName,
-    })
-    .select("id, name, owner_id, created_at")
-    .single();
-
-  if (newWorkspaceError) {
+  if (!membership) {
     return NextResponse.json(
-      { error: newWorkspaceError.message },
-      { status: 500 }
+      { error: "No workspace found for this user." },
+      { status: 404 }
     );
   }
 
-  await supabase.from("profiles").upsert({
-    id: user.id,
-    email: user.email,
-  });
+  const organization = Array.isArray(membership.organizations)
+    ? membership.organizations[0]
+    : membership.organizations;
+
+  if (!organization) {
+    return NextResponse.json(
+      { error: "Organization not found." },
+      { status: 404 }
+    );
+  }
 
   return NextResponse.json({
-    workspace: newWorkspace,
-    created: true,
+    workspace: {
+      id: organization.id,
+      name: organization.name,
+      plan: organization.plan,
+      monthly_packet_limit: organization.monthly_packet_limit,
+      packets_used_this_month: organization.packets_used_this_month,
+      role: membership.role,
+    },
+    organization: {
+      id: organization.id,
+      name: organization.name,
+      plan: organization.plan,
+      monthly_packet_limit: organization.monthly_packet_limit,
+      packets_used_this_month: organization.packets_used_this_month,
+      role: membership.role,
+    },
   });
 }
