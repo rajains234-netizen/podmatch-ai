@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, ShieldCheck } from "lucide-react";
-import { signIn } from "@/app/auth/actions";
+import { ArrowLeft, MailCheck, ShieldCheck } from "lucide-react";
+import { resetPassword } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 
-type LoginPageProps = {
+type ForgotPasswordPageProps = {
   searchParams: Promise<{
     error?: string;
+    success?: string;
   }>;
 };
 
-export default async function LoginPage({ searchParams }: LoginPageProps) {
+export default async function ForgotPasswordPage({
+  searchParams,
+}: ForgotPasswordPageProps) {
   const params = await searchParams;
   const supabase = await createClient();
 
@@ -27,17 +30,28 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <main className="mx-auto flex min-h-[calc(100vh-8rem)] w-full max-w-6xl items-center px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-md">
         <section className="rounded-3xl border bg-card p-6 shadow-sm sm:p-8">
+          <div className="mb-6">
+            <Link
+              href="/login"
+              className="inline-flex items-center text-sm font-medium text-muted-foreground transition hover:text-foreground"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to login
+            </Link>
+          </div>
+
           <div className="inline-flex items-center rounded-full border bg-background px-3 py-1 text-sm text-muted-foreground shadow-sm">
             <ShieldCheck className="mr-2 h-4 w-4 text-emerald-600" />
-            Secure login
+            Secure account recovery
           </div>
 
           <h1 className="mt-6 text-3xl font-bold tracking-tight">
-            Log in to PODMatch AI
+            Reset your password
           </h1>
 
           <p className="mt-3 text-sm text-muted-foreground">
-            Continue reviewing freight billing packets and payment blockers.
+            Enter the email address connected to your PODMatch AI account.
+            We&apos;ll send you a password reset link if an account exists.
           </p>
 
           {params.error ? (
@@ -46,7 +60,20 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </div>
           ) : null}
 
-          <form action={signIn} className="mt-6 space-y-5">
+          {params.success ? (
+            <div className="mt-5 flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              <MailCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">Check your email</p>
+                <p className="mt-1">
+                  If an account exists for that email, a password reset link has
+                  been sent.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <form action={resetPassword} className="mt-6 space-y-5">
             <div className="space-y-2">
               <label
                 htmlFor="email"
@@ -64,45 +91,18 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-4">
-                <label
-                  htmlFor="password"
-                  className="text-sm font-medium text-foreground"
-                >
-                  Password
-                </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm font-medium text-muted-foreground underline transition hover:text-foreground"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                placeholder="Your password"
-                className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-
             <Button type="submit" className="h-11 w-full rounded-xl">
-              Log in
-              <ArrowRight className="ml-2 h-4 w-4" />
+              Send reset link
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            New to PODMatch AI?{" "}
+            Remembered your password?{" "}
             <Link
-              href="/signup"
+              href="/login"
               className="font-medium text-foreground underline"
             >
-              Create account
+              Log in
             </Link>
           </p>
         </section>
