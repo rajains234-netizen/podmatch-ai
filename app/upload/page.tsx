@@ -25,6 +25,7 @@ type DemoFile = {
   type: string;
   lastModified: number;
   isSample?: boolean;
+  rawFile?: File;
 };
 
 const maxFileSize = 10 * 1024 * 1024;
@@ -222,6 +223,7 @@ export default function UploadPage() {
   const [reviewStarted, setReviewStarted] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [uploadedLoadPacketId, setUploadedLoadPacketId] = useState<string | null>(null);
 
   const hasFiles = selectedFiles.length > 0;
   const highPriorityCount = blockers.filter((blocker) => blocker.severity === "High").length;
@@ -285,6 +287,7 @@ export default function UploadPage() {
         size: file.size,
         type: file.type,
         lastModified: file.lastModified,
+        rawFile: file,
       });
     });
 
@@ -341,20 +344,61 @@ export default function UploadPage() {
     setReviewStarted(false);
   }
 
-  function runMockReview() {
+async function runMockReview() {
     if (!hasFiles) {
+      return;
+    }
+
+    if (!workspaceId) {
+      setFileErrors(["Workspace is still connecting. Please try again in a moment."]);
       return;
     }
 
     clearPendingReview();
     setReviewStarted(false);
     setIsReviewing(true);
+    setFileErrors([]);
+    setUploadedLoadPacketId(null);
 
-    reviewTimerRef.current = setTimeout(() => {
+    const realFiles = selectedFiles
+      .map((file) => file.rawFile)
+      .filter((file): file is File => Boolean(file));
+
+    try {
+      if (realFiles.length > 0) {
+        const formData = new FormData();
+
+        formData.append("workspaceId", workspaceId);
+
+        realFiles.forEach((file) => {
+          formData.append("files", file);
+        });
+
+        const response = await fetch("/api/documents/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Failed to upload documents.");
+        }
+
+        setUploadedLoadPacketId(payload.loadPacket.id);
+      }
+
+      reviewTimerRef.current = setTimeout(() => {
+        setIsReviewing(false);
+        setReviewStarted(true);
+        reviewTimerRef.current = null;
+      }, 1200);
+    } catch (error) {
       setIsReviewing(false);
-      setReviewStarted(true);
-      reviewTimerRef.current = null;
-    }, 1200);
+      setFileErrors([
+        error instanceof Error ? error.message : "Failed to upload documents.",
+      ]);
+    }
   }
 
   return (
@@ -391,6 +435,13 @@ export default function UploadPage() {
             Connecting workspace...
           </div>
         )}
+
+    {uploadedLoadPacketId ? (
+          <div className="mb-6 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-sm text-cyan-200">
+            Load packet saved: {uploadedLoadPacketId}
+          </div>
+        ) : null}
+
         <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
             <div
