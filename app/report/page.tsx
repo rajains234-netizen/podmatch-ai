@@ -199,14 +199,14 @@ export default function ReportPage() {
             </Link>
 
             <p className="mb-2 text-sm font-medium text-cyan-300 print:text-slate-600">
-              PODMatch AI report
+              PODMatch AI static demo report
             </p>
             <h1 className="text-4xl font-bold tracking-tight print:text-3xl print:text-slate-950">
-              Billing readiness review
+              Static billing readiness report
             </h1>
             <p className="mt-3 max-w-2xl text-slate-300 print:text-slate-700">
-              PODMatch AI compared the shipment packet against the invoice and rate confirmation,
-              then flagged documents and charges that may delay payment.
+              This static report demonstrates how PODMatch AI presents billing readiness results.
+              It does not reflect the most recently uploaded packet.
             </p>
             <p className="mt-3 text-sm text-slate-500 print:text-slate-600">{generatedAt}</p>
           </div>
@@ -263,9 +263,9 @@ export default function ReportPage() {
         <section className="print-hide mb-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-4 shadow-2xl">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
-              <h2 className="text-lg font-semibold">Demo mode</h2>
+              <h2 className="text-lg font-semibold">Static demo mode</h2>
               <p className="text-sm text-slate-400">
-                Switch between a blocked shipment packet and a clean, ready-to-bill packet.
+                Switch between two static demo scenarios: a blocked packet and a clean, ready-to-bill packet.
               </p>
             </div>
 

@@ -110,32 +110,289 @@ const documentTypes = [
   },
 ];
 
-const extractedFields = [
-  { label: "Load number", value: "PM-10482" },
-  { label: "Carrier", value: "Atlas Freight Lines" },
-  { label: "Delivery date", value: "Mar 22, 2026" },
-  { label: "Rate confirmation total", value: "USD 2,450.00" },
-  { label: "Invoice total", value: "USD 2,675.00" },
-  { label: "POD signature", value: "Missing" },
-];
+type Blocker = {
+  title: string;
+  description: string;
+  severity: "High" | "Medium" | "Low";
+};
 
-const blockers = [
-  {
-    title: "Missing signed POD",
-    description: "The delivery document is missing a receiver signature.",
-    severity: "High",
-  },
-  {
-    title: "Invoice mismatch",
-    description: "Invoice total is USD 225.00 higher than the rate confirmation.",
-    severity: "High",
-  },
-  {
-    title: "Unsupported lumper charge",
-    description: "Lumper fee was detected, but no matching receipt was uploaded.",
-    severity: "Medium",
-  },
-];
+type MockReviewResult = {
+  readiness: "Ready" | "Blocked";
+  extractedFields: {
+    label: string;
+    value: string;
+  }[];
+  blockers: Blocker[];
+};
+
+function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
+  const names = files.map((file) => file.name.toLowerCase());
+
+  const has = (keyword: string) => names.some((name) => name.includes(keyword));
+
+  if (has("blocked-invoice")) {
+    return {
+      readiness: "Blocked",
+      extractedFields: [
+        { label: "Load number", value: "PM-2001" },
+        { label: "Carrier", value: "PODMatch Test Carrier LLC" },
+        { label: "Broker", value: "Missing Docs Broker" },
+        { label: "Rate confirmation total", value: "Missing" },
+        { label: "Invoice total", value: "USD 2,200.00" },
+        { label: "POD signature", value: "Missing" },
+      ],
+      blockers: [
+        {
+          title: "Missing POD",
+          description: "No proof of delivery was uploaded for load PM-2001.",
+          severity: "High",
+        },
+        {
+          title: "Missing rate confirmation",
+          description: "No rate confirmation was uploaded to validate the invoice total.",
+          severity: "High",
+        },
+        {
+          title: "Missing BOL",
+          description: "No bill of lading was uploaded for shipment backup.",
+          severity: "Medium",
+        },
+        {
+          title: "Unsupported lumper charge",
+          description: "Invoice includes USD 250.00 lumper charge, but no lumper receipt was uploaded.",
+          severity: "Medium",
+        },
+        {
+          title: "Unsupported detention charge",
+          description: "Invoice includes USD 150.00 detention, but no detention evidence was uploaded.",
+          severity: "Medium",
+        },
+      ],
+    };
+  }
+
+  if (has("lumper")) {
+    const hasInvoice = has("lumper-invoice");
+    const hasPod = has("lumper-pod");
+    const hasRateConfirmation = has("lumper-rate-confirmation");
+    const hasBol = has("lumper-bol");
+    const hasReceipt = has("lumper-receipt");
+
+    const lumperBlockers: Blocker[] = [];
+
+    if (!hasInvoice) {
+      lumperBlockers.push({
+        title: "Missing invoice",
+        description: "No invoice was uploaded for lumper load PM-3001.",
+        severity: "High",
+      });
+    }
+
+    if (!hasPod) {
+      lumperBlockers.push({
+        title: "Missing POD",
+        description: "No proof of delivery was uploaded for lumper load PM-3001.",
+        severity: "High",
+      });
+    }
+
+    if (!hasRateConfirmation) {
+      lumperBlockers.push({
+        title: "Missing rate confirmation",
+        description: "No rate confirmation was uploaded to validate the lumper charge.",
+        severity: "High",
+      });
+    }
+
+    if (!hasBol) {
+      lumperBlockers.push({
+        title: "Missing BOL",
+        description: "No bill of lading was uploaded for lumper load PM-3001.",
+        severity: "Medium",
+      });
+    }
+
+    if (!hasReceipt) {
+      lumperBlockers.push({
+        title: "Missing lumper receipt",
+        description: "Invoice includes a lumper charge, but no matching receipt was uploaded.",
+        severity: "Medium",
+      });
+    }
+
+    return {
+      readiness: lumperBlockers.length === 0 ? "Ready" : "Blocked",
+      extractedFields: [
+        { label: "Load number", value: "PM-3001" },
+        { label: "Carrier", value: "PODMatch Test Carrier LLC" },
+        { label: "Broker", value: "Lumper Test Broker" },
+        {
+          label: "Rate confirmation total",
+          value: hasRateConfirmation ? "USD 2,250.00" : "Missing",
+        },
+        { label: "Invoice total", value: hasInvoice ? "USD 2,250.00" : "Missing" },
+        {
+          label: "Lumper support",
+          value: hasReceipt ? "Receipt matched: USD 250.00" : "Missing",
+        },
+      ],
+      blockers: lumperBlockers,
+    };
+  }
+
+  if (has("detention")) {
+    const hasInvoice = has("detention-invoice");
+    const hasPod = has("detention-pod");
+    const hasRateConfirmation = has("detention-rate-confirmation");
+    const hasBol = has("detention-bol");
+    const hasEvidence = has("detention-evidence");
+
+    const detentionBlockers: Blocker[] = [];
+
+    if (!hasInvoice) {
+      detentionBlockers.push({
+        title: "Missing invoice",
+        description: "No invoice was uploaded for detention load PM-4001.",
+        severity: "High",
+      });
+    }
+
+    if (!hasPod) {
+      detentionBlockers.push({
+        title: "Missing POD",
+        description: "No proof of delivery was uploaded for detention load PM-4001.",
+        severity: "High",
+      });
+    }
+
+    if (!hasRateConfirmation) {
+      detentionBlockers.push({
+        title: "Missing rate confirmation",
+        description: "No rate confirmation was uploaded to validate the detention charge.",
+        severity: "High",
+      });
+    }
+
+    if (!hasBol) {
+      detentionBlockers.push({
+        title: "Missing BOL",
+        description: "No bill of lading was uploaded for detention load PM-4001.",
+        severity: "Medium",
+      });
+    }
+
+    if (!hasEvidence) {
+      detentionBlockers.push({
+        title: "Missing detention evidence",
+        description:
+          "Invoice includes detention, but no appointment, arrival, departure, or approval evidence was uploaded.",
+        severity: "Medium",
+      });
+    }
+
+    return {
+      readiness: detentionBlockers.length === 0 ? "Ready" : "Blocked",
+      extractedFields: [
+        { label: "Load number", value: "PM-4001" },
+        { label: "Carrier", value: "PODMatch Test Carrier LLC" },
+        { label: "Broker", value: "Detention Test Broker" },
+        {
+          label: "Rate confirmation total",
+          value: hasRateConfirmation ? "USD 2,050.00" : "Missing",
+        },
+        { label: "Invoice total", value: hasInvoice ? "USD 2,050.00" : "Missing" },
+        {
+          label: "Detention support",
+          value: hasEvidence ? "Evidence matched: USD 150.00" : "Missing",
+        },
+      ],
+      blockers: detentionBlockers,
+    };
+  }
+
+  if (has("test-invoice") || has("test-pod") || has("test-rate-confirmation") || has("test-bol")) {
+    const hasInvoice = has("test-invoice");
+    const hasPod = has("test-pod");
+    const hasRateConfirmation = has("test-rate-confirmation");
+    const hasBol = has("test-bol");
+
+    const missingBlockers: Blocker[] = [];
+
+    if (!hasInvoice) {
+      missingBlockers.push({
+        title: "Missing invoice",
+        description: "No invoice was uploaded for load PM-1001.",
+        severity: "High",
+      });
+    }
+
+    if (!hasPod) {
+      missingBlockers.push({
+        title: "Missing POD",
+        description: "No proof of delivery was uploaded for load PM-1001.",
+        severity: "High",
+      });
+    }
+
+    if (!hasRateConfirmation) {
+      missingBlockers.push({
+        title: "Missing rate confirmation",
+        description: "No rate confirmation was uploaded to validate load PM-1001.",
+        severity: "High",
+      });
+    }
+
+    if (!hasBol) {
+      missingBlockers.push({
+        title: "Missing BOL",
+        description: "No bill of lading was uploaded for load PM-1001.",
+        severity: "Medium",
+      });
+    }
+
+    return {
+      readiness: missingBlockers.length === 0 ? "Ready" : "Blocked",
+      extractedFields: [
+        { label: "Load number", value: "PM-1001" },
+        { label: "Carrier", value: "PODMatch Test Carrier LLC" },
+        { label: "Broker", value: "Test Broker Logistics" },
+        { label: "Rate confirmation total", value: hasRateConfirmation ? "USD 2,150.00" : "Missing" },
+        { label: "Invoice total", value: hasInvoice ? "USD 2,150.00" : "Missing" },
+        { label: "POD signature", value: hasPod ? "John Smith" : "Missing" },
+      ],
+      blockers: missingBlockers,
+    };
+  }
+
+  return {
+    readiness: "Blocked",
+    extractedFields: [
+      { label: "Load number", value: "PM-10482" },
+      { label: "Carrier", value: "Atlas Freight Lines" },
+      { label: "Delivery date", value: "Mar 22, 2026" },
+      { label: "Rate confirmation total", value: "USD 2,450.00" },
+      { label: "Invoice total", value: "USD 2,675.00" },
+      { label: "POD signature", value: "Missing" },
+    ],
+    blockers: [
+      {
+        title: "Missing signed POD",
+        description: "The delivery document is missing a receiver signature.",
+        severity: "High",
+      },
+      {
+        title: "Invoice mismatch",
+        description: "Invoice total is USD 225.00 higher than the rate confirmation.",
+        severity: "High",
+      },
+      {
+        title: "Unsupported lumper charge",
+        description: "Lumper fee was detected, but no matching receipt was uploaded.",
+        severity: "Medium",
+      },
+    ],
+  };
+}
 
 function getFileId(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
@@ -226,7 +483,10 @@ export default function UploadPage() {
   const [uploadedLoadPacketId, setUploadedLoadPacketId] = useState<string | null>(null);
 
   const hasFiles = selectedFiles.length > 0;
-  const highPriorityCount = blockers.filter((blocker) => blocker.severity === "High").length;
+  const mockReview = getMockReviewForFiles(selectedFiles);
+  const highPriorityCount = mockReview.blockers.filter(
+    (blocker) => blocker.severity === "High"
+  ).length;
 
   useEffect(() => {
     async function bootstrapWorkspace() {
@@ -461,7 +721,7 @@ async function runMockReview() {
               <h2 className="text-2xl font-semibold">Drop freight documents here</h2>
               <p className="mt-3 max-w-md text-slate-400">
                 Upload PDFs, images, text files, or Word documents. This demo stores them only in
-                the browser and uses mock analysis results.
+                the browser and uses filename-aware mock review results for sample packets.
               </p>
 
               <input
@@ -670,7 +930,7 @@ async function runMockReview() {
 
             {reviewStarted && (
               <div className="space-y-3">
-                {extractedFields.map((field) => (
+                {mockReview.extractedFields.map((field) => (
                   <div
                     key={field.label}
                     className="flex items-center justify-between rounded-2xl bg-slate-950/70 px-4 py-3"
@@ -700,7 +960,9 @@ async function runMockReview() {
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
                   <p className="text-sm text-slate-400">Billing blockers</p>
-                  <p className="mt-2 text-3xl font-bold text-amber-300">{blockers.length}</p>
+                  <p className="mt-2 text-3xl font-bold text-amber-300">
+                    {mockReview.blockers.length}
+                  </p>
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
@@ -708,9 +970,27 @@ async function runMockReview() {
                   <p className="mt-2 text-3xl font-bold text-red-300">{highPriorityCount}</p>
                 </div>
 
-                <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
-                  <p className="text-sm text-red-200">Payment readiness</p>
-                  <p className="mt-2 text-3xl font-bold text-red-100">Blocked</p>
+                <div
+                  className={`rounded-2xl border p-5 ${
+                    mockReview.readiness === "Ready"
+                      ? "border-emerald-500/30 bg-emerald-500/10"
+                      : "border-red-500/30 bg-red-500/10"
+                  }`}
+                >
+                  <p
+                    className={`text-sm ${
+                      mockReview.readiness === "Ready" ? "text-emerald-200" : "text-red-200"
+                    }`}
+                  >
+                    Payment readiness
+                  </p>
+                  <p
+                    className={`mt-2 text-3xl font-bold ${
+                      mockReview.readiness === "Ready" ? "text-emerald-100" : "text-red-100"
+                    }`}
+                  >
+                    {mockReview.readiness}
+                  </p>
                 </div>
               </div>
             </section>
@@ -718,30 +998,45 @@ async function runMockReview() {
             <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
               <div className="mb-5 flex items-center gap-3">
                 <AlertTriangle className="h-6 w-6 text-amber-300" />
-                <h2 className="text-2xl font-semibold">Billing blockers found</h2>
+                <h2 className="text-2xl font-semibold">
+                  {mockReview.blockers.length > 0 ? "Billing blockers found" : "No billing blockers found"}
+                </h2>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
-                {blockers.map((blocker) => (
-                  <div
-                    key={blocker.title}
-                    className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"
-                  >
-                    <div className="mb-3 inline-flex rounded-full bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-300">
-                      {blocker.severity} priority
-                    </div>
-                    <h3 className="font-semibold text-white">{blocker.title}</h3>
-                    <p className="mt-2 text-sm text-slate-400">{blocker.description}</p>
+              {mockReview.blockers.length === 0 ? (
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-5">
+                  <div className="mb-3 inline-flex rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+                    Ready for payment
                   </div>
-                ))}
-              </div>
+                  <h3 className="font-semibold text-white">Documents matched successfully</h3>
+                  <p className="mt-2 text-sm text-slate-300">
+                    Invoice total, rate confirmation, POD signature, and shipment backup are aligned
+                    for this mock packet.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-3">
+                  {mockReview.blockers.map((blocker) => (
+                    <div
+                      key={blocker.title}
+                      className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"
+                    >
+                      <div className="mb-3 inline-flex rounded-full bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-300">
+                        {blocker.severity} priority
+                      </div>
+                      <h3 className="font-semibold text-white">{blocker.title}</h3>
+                      <p className="mt-2 text-sm text-slate-400">{blocker.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/report"
                   className="rounded-full bg-cyan-400 px-6 py-3 text-center font-semibold text-slate-950 hover:bg-cyan-300"
                 >
-                  View full demo report
+                  View static demo report
                 </Link>
 
                 <button
