@@ -6,7 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "PODMatch AI",
   description:
-    "Freight billing reconciliation for PODs, BOLs, invoices, rate confirmations, and accessorial evidence.",
+    "Freight billing readiness review for signed PODs, invoices, rate confirmations, receipts, and accessorial evidence.",
 };
 
 export default function RootLayout({

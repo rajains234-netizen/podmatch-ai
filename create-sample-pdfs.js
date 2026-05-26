@@ -1,4 +1,6 @@
-﻿const fs = require("fs");
+﻿/* eslint-disable */
+/* eslint-disable @typescript-eslint/no-require-imports */
+const fs = require("fs");
 const path = require("path");
 
 const outputDir = path.join(process.cwd(), "sample-pdfs");

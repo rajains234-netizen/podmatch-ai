@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
-  CheckCircle2,
+  
   Clock3,
   FileCheck2,
   ShieldCheck,
@@ -17,7 +17,7 @@ const valueCards = [
     icon: UploadCloud,
     title: "Upload freight docs",
     description:
-      "Add rate confirmations, invoices, PODs, BOLs, receipts, and accessorial evidence in one review flow.",
+      "Add rate confirmations, invoices, signed PODs, receipts, and accessorial evidence in one review flow.",
     color: "text-blue-400",
   },
   {
@@ -87,7 +87,7 @@ export default function Home() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-            PODMatch AI reviews freight documents like PODs, BOLs, rate confirmations, invoices,
+            PODMatch AI reviews freight documents like signed PODs, rate confirmations, invoices,
             lumper receipts, and detention evidence — then flags billing blockers in minutes.
           </p>
 

@@ -38,7 +38,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
           </h1>
 
           <p className="mt-4 max-w-xl text-lg text-muted-foreground">
-            Upload PODs, invoices, BOLs, rate confirmations, lumper receipts,
+            Upload signed PODs, invoices, rate confirmations, lumper receipts,
             and detention backup to catch payment blockers before you submit
             billing.
           </p>

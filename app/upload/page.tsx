@@ -96,10 +96,7 @@ const documentTypes = [
     name: "POD",
     keywords: ["pod", "proof", "delivery"],
   },
-  {
-    name: "BOL",
-    keywords: ["bol", "bill-of-lading", "lading"],
-  },
+  
   {
     name: "Lumper receipt",
     keywords: ["lumper", "receipt"],
@@ -116,7 +113,7 @@ type Blocker = {
   severity: "High" | "Medium" | "Low";
 };
 
-type MockReviewResult = {
+type activeReviewResult = {
   readiness: "Ready" | "Blocked";
   extractedFields: {
     label: string;
@@ -125,15 +122,169 @@ type MockReviewResult = {
   blockers: Blocker[];
 };
 
-function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
+   type UploadApiPayload = {
+   error?: string;
+   packet?: {
+    id?: string;
+    load_number?: string;
+    status?: string;
+    readiness_score?: number;
+    payment_delay_risk?: string;
+    created_at?: string;
+  };
+  loadPacket?: {
+    id?: string;
+    workspace_id?: string;
+    organization_id?: string;
+    reference_number?: string;
+    load_number?: string;
+    status?: string;
+    readiness_score?: number;
+    payment_delay_risk?: string;
+    created_at?: string;
+  };
+  review?: {
+    score?: number;
+    status?: string;
+    paymentDelayRisk?: string;
+    summary?: string;
+    blockers?: {
+      severity: "low" | "medium" | "high" | "critical";
+      title: string;
+      description: string;
+      recommended_fix: string;
+      amount_at_risk?: number;
+    }[];
+    extractedValues?: {
+      revenue_at_risk?: number;
+      invoice_total?: number;
+      rate_total?: number;
+      accessorials_at_risk?: number;
+      detected_documents?: {
+        id: string;
+        file_name: string;
+        document_type: string;
+        confidence?: number | null;
+      }[];
+      checks?: Record<string, unknown>;
+    };
+  };
+  documents?: {
+    id: string;
+    file_name: string;
+    document_type: string;
+    confidence?: number | null;
+  }[];
+};
+
+function formatCurrencyValue(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "Missing";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(value);
+}
+
+function mapApiSeverityToUiSeverity(
+  severity: "low" | "medium" | "high" | "critical" | undefined
+): Blocker["severity"] {
+  if (severity === "critical" || severity === "high") {
+    return "High";
+  }
+
+  if (severity === "medium") {
+    return "Medium";
+  }
+
+  return "Low";
+}
+
+function mapApiStatusToReadiness(status: string | undefined): activeReviewResult["readiness"] {
+  return status === "ready_to_bill" ? "Ready" : "Blocked";
+}
+
+ function buildReviewFromApiPayload(payload: UploadApiPayload): activeReviewResult {
+  const review = payload.review;
+  const extractedValues = review?.extractedValues;
+  const documents = payload.documents ?? [];
+  const detectedDocuments = extractedValues?.detected_documents ?? [];
+
+  const invoiceCount =
+    detectedDocuments.filter((document) => document.document_type === "invoice").length ||
+    documents.filter((document) => document.document_type === "invoice").length;
+
+  const podCount =
+    detectedDocuments.filter((document) => document.document_type === "pod").length ||
+    documents.filter((document) => document.document_type === "pod").length;
+
+  const rateConfirmationCount =
+    detectedDocuments.filter((document) => document.document_type === "rate_confirmation").length ||
+    documents.filter((document) => document.document_type === "rate_confirmation").length;
+
+  return {
+    readiness: mapApiStatusToReadiness(review?.status),
+    extractedFields: [
+      {
+        label: "Load packet",
+        value: payload.packet?.load_number ?? payload.packet?.id ?? "Created",
+      },
+      {
+        label: "Readiness score",
+        value: typeof review?.score === "number" ? `${review.score}/100` : "Missing",
+      },
+      {
+        label: "Documents reviewed",
+        value: String(documents.length || detectedDocuments.length || 0),
+      },
+      {
+        label: "Invoices detected",
+        value: String(invoiceCount),
+      },
+      {
+        label: "Rate confirmations detected",
+        value: String(rateConfirmationCount),
+      },
+      {
+        label: "PODs detected",
+        value: String(podCount),
+      },
+      {
+        label: "Rate confirmation total",
+        value: formatCurrencyValue(extractedValues?.rate_total),
+      },
+      {
+        label: "Invoice total",
+        value: formatCurrencyValue(extractedValues?.invoice_total),
+      },
+      {
+        label: "Revenue at risk",
+        value: formatCurrencyValue(extractedValues?.revenue_at_risk),
+      },
+    ],
+    blockers:
+      review?.blockers?.map((blocker) => ({
+        severity: mapApiSeverityToUiSeverity(blocker.severity),
+        title: blocker.title,
+        description: blocker.amount_at_risk
+          ? `${blocker.description} Amount at risk: ${formatCurrencyValue(blocker.amount_at_risk)}.`
+          : blocker.description,
+      })) ?? [],
+  };
+}
+
+function getMockReviewForFiles(files: DemoFile[]): activeReviewResult {
   const names = files.map((file) => file.name.toLowerCase());
 
   const has = (keyword: string) => names.some((name) => name.includes(keyword));
 
   if (has("blocked-invoice")) {
     return {
-      readiness: "Blocked",
-      extractedFields: [
+    readiness: "Blocked",
+    
+  extractedFields: [
         { label: "Load number", value: "PM-2001" },
         { label: "Carrier", value: "PODMatch Test Carrier LLC" },
         { label: "Broker", value: "Missing Docs Broker" },
@@ -152,11 +303,7 @@ function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
           description: "No rate confirmation was uploaded to validate the invoice total.",
           severity: "High",
         },
-        {
-          title: "Missing BOL",
-          description: "No bill of lading was uploaded for shipment backup.",
-          severity: "Medium",
-        },
+        
         {
           title: "Unsupported lumper charge",
           description: "Invoice includes USD 250.00 lumper charge, but no lumper receipt was uploaded.",
@@ -175,7 +322,7 @@ function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
     const hasInvoice = has("lumper-invoice");
     const hasPod = has("lumper-pod");
     const hasRateConfirmation = has("lumper-rate-confirmation");
-    const hasBol = has("lumper-bol");
+    
     const hasReceipt = has("lumper-receipt");
 
     const lumperBlockers: Blocker[] = [];
@@ -204,13 +351,7 @@ function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
       });
     }
 
-    if (!hasBol) {
-      lumperBlockers.push({
-        title: "Missing BOL",
-        description: "No bill of lading was uploaded for lumper load PM-3001.",
-        severity: "Medium",
-      });
-    }
+    
 
     if (!hasReceipt) {
       lumperBlockers.push({
@@ -221,8 +362,9 @@ function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
     }
 
     return {
-      readiness: lumperBlockers.length === 0 ? "Ready" : "Blocked",
-      extractedFields: [
+       readiness: lumperBlockers.length === 0 ? "Ready" : "Blocked",
+       
+  extractedFields: [
         { label: "Load number", value: "PM-3001" },
         { label: "Carrier", value: "PODMatch Test Carrier LLC" },
         { label: "Broker", value: "Lumper Test Broker" },
@@ -244,7 +386,7 @@ function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
     const hasInvoice = has("detention-invoice");
     const hasPod = has("detention-pod");
     const hasRateConfirmation = has("detention-rate-confirmation");
-    const hasBol = has("detention-bol");
+    
     const hasEvidence = has("detention-evidence");
 
     const detentionBlockers: Blocker[] = [];
@@ -273,13 +415,7 @@ function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
       });
     }
 
-    if (!hasBol) {
-      detentionBlockers.push({
-        title: "Missing BOL",
-        description: "No bill of lading was uploaded for detention load PM-4001.",
-        severity: "Medium",
-      });
-    }
+    
 
     if (!hasEvidence) {
       detentionBlockers.push({
@@ -310,11 +446,11 @@ function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
     };
   }
 
-  if (has("test-invoice") || has("test-pod") || has("test-rate-confirmation") || has("test-bol")) {
+   if (has("test-invoice") || has("test-pod") || has("test-rate-confirmation")) {
     const hasInvoice = has("test-invoice");
     const hasPod = has("test-pod");
     const hasRateConfirmation = has("test-rate-confirmation");
-    const hasBol = has("test-bol");
+    
 
     const missingBlockers: Blocker[] = [];
 
@@ -342,13 +478,7 @@ function getMockReviewForFiles(files: DemoFile[]): MockReviewResult {
       });
     }
 
-    if (!hasBol) {
-      missingBlockers.push({
-        title: "Missing BOL",
-        description: "No bill of lading was uploaded for load PM-1001.",
-        severity: "Medium",
-      });
-    }
+    
 
     return {
       readiness: missingBlockers.length === 0 ? "Ready" : "Blocked",
@@ -481,10 +611,13 @@ export default function UploadPage() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [uploadedLoadPacketId, setUploadedLoadPacketId] = useState<string | null>(null);
+  const [apiReview, setApiReview] = useState<activeReviewResult | null>(null);
 
   const hasFiles = selectedFiles.length > 0;
   const mockReview = getMockReviewForFiles(selectedFiles);
-  const highPriorityCount = mockReview.blockers.filter(
+  const activeReview = apiReview ?? mockReview;
+
+  const highPriorityCount = activeReview.blockers.filter(
     (blocker) => blocker.severity === "High"
   ).length;
 
@@ -604,7 +737,7 @@ export default function UploadPage() {
     setReviewStarted(false);
   }
 
-async function runMockReview() {
+async function runactiveReview() {
     if (!hasFiles) {
       return;
     }
@@ -619,6 +752,7 @@ async function runMockReview() {
     setIsReviewing(true);
     setFileErrors([]);
     setUploadedLoadPacketId(null);
+    setApiReview(null);
 
     const realFiles = selectedFiles
       .map((file) => file.rawFile)
@@ -639,13 +773,14 @@ async function runMockReview() {
           body: formData,
         });
 
-        const payload = await response.json();
-
+        const payload = (await response.json()) as UploadApiPayload;
         if (!response.ok) {
-          throw new Error(payload.error ?? "Failed to upload documents.");
-        }
+        throw new Error(payload.error ?? "Failed to upload documents.");
+       }
+      setUploadedLoadPacketId(payload.packet?.id ?? payload.loadPacket?.id ?? null);
+      setApiReview(buildReviewFromApiPayload(payload));
 
-        setUploadedLoadPacketId(payload.loadPacket.id);
+        
       }
 
       reviewTimerRef.current = setTimeout(() => {
@@ -669,9 +804,9 @@ async function runMockReview() {
             <p className="mb-2 text-sm font-medium text-cyan-300">PODMatch AI</p>
             <h1 className="text-4xl font-bold tracking-tight">Upload freight docs</h1>
             <p className="mt-3 max-w-2xl text-slate-300">
-              Add rate confirmations, invoices, PODs, BOLs, receipts, and accessorial evidence.
-              PODMatch AI will match documents, extract billing details, and flag blockers before
-              payment is delayed.
+              Add rate confirmations, invoices, signed PODs, lumper receipts, detention backup,
+              and accessorial evidence. PODMatch AI will match documents, extract billing details,
+              and flag blockers before payment is delayed.
             </p>
           </div>
 
@@ -720,8 +855,8 @@ async function runMockReview() {
               <UploadCloud className="mb-4 h-12 w-12 text-cyan-300" />
               <h2 className="text-2xl font-semibold">Drop freight documents here</h2>
               <p className="mt-3 max-w-md text-slate-400">
-                Upload PDFs, images, text files, or Word documents. This demo stores them only in
-                the browser and uses filename-aware mock review results for sample packets.
+                Upload PDFs, images, text files, or Word documents. PODMatch AI stores the packet,
+                extracts document text, and generates a billing readiness review.
               </p>
 
               <input
@@ -779,7 +914,7 @@ async function runMockReview() {
                   {selectedFiles.length} file{selectedFiles.length === 1 ? "" : "s"} selected
                 </p>
                 <p className="text-sm text-slate-400">
-                  Add a shipment packet to run the mock review.
+                  Add a shipment packet to run the  review.
                 </p>
               </div>
 
@@ -878,7 +1013,7 @@ async function runMockReview() {
             <button
               type="button"
               disabled={!hasFiles || isReviewing}
-              onClick={runMockReview}
+              onClick={runactiveReview}
               className="mt-6 flex w-full items-center justify-center rounded-full bg-blue-500 px-6 py-3 font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
             >
               {isReviewing ? (
@@ -887,7 +1022,7 @@ async function runMockReview() {
                   Analyzing packet...
                 </>
               ) : (
-                "Run mock review"
+                "Run review"
               )}
             </button>
           </div>
@@ -895,15 +1030,15 @@ async function runMockReview() {
           <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl">
             <div className="mb-5 flex items-center gap-3">
               <CheckCircle2 className="h-6 w-6 text-emerald-300" />
-              <h2 className="text-2xl font-semibold">Mock extraction</h2>
+              <h2 className="text-2xl font-semibold">Billing readiness result</h2>
             </div>
 
             {!reviewStarted && !isReviewing && (
               <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
                 <p className="text-sm text-slate-300">
                   Select shipment documents and click{" "}
-                  <span className="font-semibold text-cyan-300">Run mock review</span> to preview
-                  extracted billing fields.
+                  <span className="font-semibold text-cyan-300">Run review</span> to analyze
+                  billing readiness.
                 </p>
               </div>
             )}
@@ -930,7 +1065,7 @@ async function runMockReview() {
 
             {reviewStarted && (
               <div className="space-y-3">
-                {mockReview.extractedFields.map((field) => (
+                {activeReview.extractedFields.map((field) => (
                   <div
                     key={field.label}
                     className="flex items-center justify-between rounded-2xl bg-slate-950/70 px-4 py-3"
@@ -961,7 +1096,7 @@ async function runMockReview() {
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
                   <p className="text-sm text-slate-400">Billing blockers</p>
                   <p className="mt-2 text-3xl font-bold text-amber-300">
-                    {mockReview.blockers.length}
+                    {activeReview.blockers.length}
                   </p>
                 </div>
 
@@ -972,24 +1107,24 @@ async function runMockReview() {
 
                 <div
                   className={`rounded-2xl border p-5 ${
-                    mockReview.readiness === "Ready"
+                    activeReview.readiness === "Ready"
                       ? "border-emerald-500/30 bg-emerald-500/10"
                       : "border-red-500/30 bg-red-500/10"
                   }`}
                 >
                   <p
                     className={`text-sm ${
-                      mockReview.readiness === "Ready" ? "text-emerald-200" : "text-red-200"
+                      activeReview.readiness === "Ready" ? "text-emerald-200" : "text-red-200"
                     }`}
                   >
                     Payment readiness
                   </p>
                   <p
                     className={`mt-2 text-3xl font-bold ${
-                      mockReview.readiness === "Ready" ? "text-emerald-100" : "text-red-100"
+                      activeReview.readiness === "Ready" ? "text-emerald-100" : "text-red-100"
                     }`}
                   >
-                    {mockReview.readiness}
+                    {activeReview.readiness}
                   </p>
                 </div>
               </div>
@@ -999,24 +1134,24 @@ async function runMockReview() {
               <div className="mb-5 flex items-center gap-3">
                 <AlertTriangle className="h-6 w-6 text-amber-300" />
                 <h2 className="text-2xl font-semibold">
-                  {mockReview.blockers.length > 0 ? "Billing blockers found" : "No billing blockers found"}
+                  {activeReview.blockers.length > 0 ? "Billing blockers found" : "No billing blockers found"}
                 </h2>
               </div>
 
-              {mockReview.blockers.length === 0 ? (
+              {activeReview.blockers.length === 0 ? (
                 <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-5">
                   <div className="mb-3 inline-flex rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
                     Ready for payment
                   </div>
                   <h3 className="font-semibold text-white">Documents matched successfully</h3>
                   <p className="mt-2 text-sm text-slate-300">
-                    Invoice total, rate confirmation, POD signature, and shipment backup are aligned
-                    for this mock packet.
+                    Invoice total, rate confirmation, POD signature and required accessorial support are aligned
+                    for this packet.
                   </p>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-3">
-                  {mockReview.blockers.map((blocker) => (
+                  {activeReview.blockers.map((blocker) => (
                     <div
                       key={blocker.title}
                       className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"
@@ -1033,18 +1168,23 @@ async function runMockReview() {
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link
-                  href="/report"
-                  className="rounded-full bg-cyan-400 px-6 py-3 text-center font-semibold text-slate-950 hover:bg-cyan-300"
-                >
-                  View static demo report
-                </Link>
+                href={uploadedLoadPacketId ? `/report?packetId=${uploadedLoadPacketId}` : "/report"}
+                className={`rounded-full px-6 py-3 text-center font-semibold ${
+                uploadedLoadPacketId
+                ? "bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+                : "cursor-not-allowed bg-slate-700 text-slate-400"
+                }`}
+  aria-disabled={!uploadedLoadPacketId}
+>
+  View full report
+</Link>
 
                 <button
                   type="button"
                   onClick={() => setReviewStarted(false)}
                   className="rounded-full border border-slate-700 px-6 py-3 font-semibold text-slate-300 hover:border-cyan-400 hover:text-cyan-300"
                 >
-                  Reset mock review
+                  Reset  review
                 </button>
               </div>
             </section>

@@ -18,7 +18,7 @@ export function SiteFooter() {
           </div>
 
           <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
-            PODMatch AI helps logistics teams review PODs, BOLs, invoices, rate confirmations,
+            PODMatch AI helps logistics teams review signed PODs, invoices, rate confirmations,
             receipts, and accessorial evidence before payment gets delayed.
           </p>
         </div>
@@ -40,18 +40,18 @@ export function SiteFooter() {
 
         <div>
           <h3 className="text-sm font-semibold text-white">MVP status</h3>
-          <div className="mt-4 flex flex-col gap-3 text-sm text-slate-400">
-            <p>Frontend demo</p>
-            <p>Mock document review</p>
-            <p>Backend AI coming next</p>
-          </div>
+         <div className="mt-4 flex flex-col gap-3 text-sm text-slate-400">
+         <p>Live MVP</p>
+         <p>PDF text extraction enabled</p>
+         <p>Rules-based billing readiness review</p>
+         </div>
         </div>
       </div>
 
       <div className="border-t border-slate-800 px-6 py-5">
         <div className="mx-auto flex max-w-6xl flex-col justify-between gap-3 text-sm text-slate-500 md:flex-row">
           <p>© 2026 PODMatch AI. All rights reserved.</p>
-          <p>Demo MVP — not yet processing real documents.</p>
+          <p>MVP pilot — processing uploaded documents with rules-based billing review.</p>
         </div>
       </div>
     </footer>

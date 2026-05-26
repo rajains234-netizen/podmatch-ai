@@ -135,7 +135,7 @@ export default async function DashboardPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-base text-slate-300 sm:text-lg">
-                Review PODs, invoices, BOLs, rate confirmations, receipts, and
+                Review signed PODs, invoices, rate confirmations, lumper receipts, and
                 detention evidence before submitting billing packets.
               </p>
             </div>

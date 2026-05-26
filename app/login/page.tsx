@@ -47,7 +47,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </h1>
 
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-              Review PODs, invoices, BOLs, rate confirmations, lumper receipts,
+              Review signed PODs, invoices, rate confirmations, lumper receipts,
               and detention evidence before sending billing packets.
             </p>
 
