@@ -1,8 +1,7 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import RecentReports from "./recent-reports";
-import type { ReactNode } from "react";
-
 import {
   AlertTriangle,
   ArrowRight,
@@ -14,6 +13,8 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+
+export const dynamic = "force-dynamic";
 
 type OrganizationSummary = {
   name: string | null;
@@ -36,27 +37,9 @@ type ShipmentPacket = {
   created_at: string;
   readiness_score?: number | null;
   revenue_at_risk?: number | null;
+  invoice_total?: number | null;
+  accessorial_total?: number | null;
 };
-
-function formatStatus(status: string) {
-  return status.replaceAll("_", " ");
-}
-
-function statusClasses(status: string) {
-  if (status === "ready_to_bill") {
-    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
-  }
-
-  if (status === "blocked" || status === "failed") {
-    return "border-red-400/30 bg-red-400/10 text-red-100";
-  }
-
-  if (status === "needs_review" || status === "analyzing") {
-    return "border-amber-400/30 bg-amber-400/10 text-amber-100";
-  }
-
-  return "border-sky-400/30 bg-sky-400/10 text-sky-100";
-}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -88,10 +71,10 @@ export default async function DashboardPage() {
   const { data: packets } = await supabase
     .from("shipment_packets")
     .select(
-      "id, load_number, broker_name, status, created_at, readiness_score, revenue_at_risk"
+      "id, load_number, broker_name, status, created_at, readiness_score, revenue_at_risk, invoice_total, accessorial_total"
     )
     .order("created_at", { ascending: false })
-    .limit(6);
+    .limit(100);
 
   const shipmentPackets = (packets || []) as ShipmentPacket[];
 
@@ -107,13 +90,23 @@ export default async function DashboardPage() {
     (packet) => packet.status === "needs_review"
   ).length;
 
-  const revenueAtRisk = shipmentPackets.reduce(
-    (total, packet) => total + Number(packet.revenue_at_risk || 0),
-    0
-  );
+  const riskyStatuses = ["blocked", "needs_review", "failed"];
+
+  const revenueAtRisk = shipmentPackets
+    .filter((packet) => riskyStatuses.includes(packet.status))
+    .reduce((total, packet) => {
+      const storedRisk = Number(packet.revenue_at_risk || 0);
+
+      const fallbackRisk =
+        Number(packet.invoice_total || 0) +
+        Number(packet.accessorial_total || 0);
+
+      return total + (storedRisk || fallbackRisk);
+    }, 0);
 
   const packetLimit = organization?.monthly_packet_limit || 10;
   const packetsUsed = organization?.packets_used_this_month || 0;
+
   const usagePercent = Math.min(
     100,
     Math.round((Number(packetsUsed) / Number(packetLimit || 1)) * 100)
@@ -138,8 +131,9 @@ export default async function DashboardPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-base text-slate-300 sm:text-lg">
-                Review signed PODs, invoices, rate confirmations, lumper receipts, and
-                detention evidence before submitting billing packets.
+                Review signed PODs, invoices, rate confirmations, lumper
+                receipts, and detention evidence before submitting billing
+                packets.
               </p>
             </div>
 
@@ -159,7 +153,7 @@ export default async function DashboardPage() {
                 variant="outline"
                 className="rounded-xl border-white/15 bg-white/5 text-white hover:bg-white/10"
               >
-                <Link href="/report">
+                <Link href="/upload">
                   Generate report
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
@@ -175,6 +169,7 @@ export default async function DashboardPage() {
               icon={<CheckCircle2 className="h-5 w-5 text-emerald-300" />}
               accent="emerald"
             />
+
             <MetricCard
               title="Needs review"
               value={needsReviewCount}
@@ -182,6 +177,7 @@ export default async function DashboardPage() {
               icon={<FileText className="h-5 w-5 text-amber-300" />}
               accent="amber"
             />
+
             <MetricCard
               title="Blocked"
               value={blockedCount}
@@ -189,10 +185,14 @@ export default async function DashboardPage() {
               icon={<AlertTriangle className="h-5 w-5 text-red-300" />}
               accent="red"
             />
+
             <MetricCard
               title="Revenue at risk"
-              value={`USD ${revenueAtRisk.toLocaleString()}`}
-              caption="From recent packets"
+              value={`USD ${revenueAtRisk.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+              caption="Blocked + review packets"
               icon={<Clock3 className="h-5 w-5 text-sky-300" />}
               accent="sky"
             />
@@ -201,88 +201,14 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20 backdrop-blur">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">Recent packet reviews</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Your latest freight billing readiness checks.
-              </p>
-            </div>
-
-            <Button
-              asChild
-              variant="outline"
-              className="rounded-xl border-white/15 bg-white/5 text-white hover:bg-white/10"
-            >
-              <Link href="/upload">Upload packet</Link>
-            </Button>
-          </div>
-
-          <div className="mt-6 divide-y divide-white/10">
-            {shipmentPackets.length > 0 ? (
-              shipmentPackets.map((packet) => (
-                <div
-                  key={packet.id}
-                  className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="font-semibold text-white">
-                        {packet.load_number || "Untitled packet"}
-                      </p>
-                      <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusClasses(
-                          packet.status
-                        )}`}
-                      >
-                        {formatStatus(packet.status)}
-                      </span>
-                    </div>
-
-                    <p className="mt-1 text-sm text-slate-400">
-                      {packet.broker_name || "No broker assigned"} · Readiness{" "}
-                      {packet.readiness_score ?? "pending"}
-                    </p>
-                  </div>
-
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="rounded-xl border-white/15 bg-white/5 text-white hover:bg-white/10"
-                  >
-                    <Link href={`/report?packetId=${packet.id}`}>
-                     View report
-                      </Link>
-                  </Button>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10">
-                  <UploadCloud className="h-6 w-6 text-emerald-300" />
-                </div>
-                <p className="mt-4 font-semibold text-white">
-                  No packets reviewed yet
-                </p>
-                <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
-                  Upload your first POD, invoice, BOL, and rate confirmation to
-                  generate a billing readiness report.
-                </p>
-                <Button
-                  className="mt-5 rounded-xl bg-emerald-400 text-slate-950 hover:bg-emerald-300"
-                  asChild
-                >
-                  <Link href="/upload">Start first review</Link>
-                </Button>
-              </div>
-            )}
-          </div>
+        <div className="space-y-6">
+          <RecentReports />
         </div>
 
         <aside className="space-y-6">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20 backdrop-blur">
             <h2 className="text-lg font-semibold">Workspace</h2>
+
             <p className="mt-1 text-sm text-slate-400">
               {organization?.name || "Your company"}
             </p>
@@ -302,6 +228,7 @@ export default async function DashboardPage() {
                     {packetsUsed}/{packetLimit}
                   </span>
                 </div>
+
                 <div className="mt-2 h-2 rounded-full bg-white/10">
                   <div
                     className="h-2 rounded-full bg-gradient-to-r from-emerald-300 to-sky-300"
@@ -334,7 +261,6 @@ export default async function DashboardPage() {
           </div>
         </aside>
       </section>
-      <RecentReports />
     </main>
   );
 }
@@ -365,10 +291,12 @@ function MetricCard({
     >
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-300">{title}</p>
+
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10">
           {icon}
         </div>
       </div>
+
       <p className="mt-4 text-2xl font-bold text-white">{value}</p>
       <p className="mt-1 text-sm text-slate-400">{caption}</p>
     </div>
