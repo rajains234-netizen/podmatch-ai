@@ -192,7 +192,7 @@ export default async function DashboardPage() {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}`}
-              caption="Blocked + review packets"
+              caption="Total across blocked + needs review packets"
               icon={<Clock3 className="h-5 w-5 text-sky-300" />}
               accent="sky"
             />

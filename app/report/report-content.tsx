@@ -17,6 +17,14 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+function formatCurrency(value: number) {
+  return `USD ${Number(value ?? 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+
 type LoadSummaryItem = {
   label: string;
   value: string;
@@ -46,6 +54,8 @@ type ReportBlocker = {
   description: string;
   recommendation: string;
   createdAt?: string | null;
+  amount_at_risk?: number | null;
+
 };
 
 type ReportPayload = {
@@ -509,6 +519,12 @@ const generatedAt =
                   <p className="mt-3 text-sm text-slate-400 print:text-slate-700">
                     {blocker.description}
                   </p>
+
+                  {Number(blocker.amount_at_risk ?? 0) > 0 ? (
+                  <p className="mt-3 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm font-semibold text-rose-200 print:border-rose-200 print:bg-rose-50 print:text-rose-700">
+                  Amount at risk: {formatCurrency(Number(blocker.amount_at_risk))}
+                  </p>
+                  ) : null}
 
                   <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4 print:border-slate-200 print:bg-slate-50">
                     <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300 print:text-slate-600">

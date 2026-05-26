@@ -276,6 +276,13 @@ function findLabeledAmount(text: string, labels: string[]) {
 function parseDocumentValues(fileName: string, extractedText: string): ParsedDocumentValues {
   const searchableText = [fileName, extractedText].join(" ").toLowerCase();
 
+  if (!extractedText.trim()) {
+  return {
+    accessorial_amounts: [],
+    possible_load_numbers: [],
+  };
+}
+
   const invoiceTotal =
     findLabeledAmount(searchableText, [
       "invoice total",
@@ -548,10 +555,36 @@ function getFirstParsedAmount(
   return undefined;
 }
 
+function extractExactLineAmount(text: string, label: string) {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const pattern = new RegExp(
+    `${escapedLabel}\\s*[:#-]?\\s*(?:USD\\s*)?\\$?([\\d,]+(?:\\.\\d{2})?)`,
+    "i"
+  );
+
+  const match = text.match(pattern);
+
+  if (!match?.[1]) {
+    return 0;
+  }
+
+  const value = Number.parseFloat(match[1].replace(/,/g, ""));
+
+  return Number.isFinite(value) ? value : 0;
+}
+
 function sumAccessorialAmounts(documents: UploadedDocument[]) {
   return documents.reduce((total, document) => {
-    const amounts = document.parsed_values?.accessorial_amounts ?? [];
-    return total + amounts.reduce((subtotal, amount) => subtotal + amount, 0);
+    const searchableText = [
+      document.file_name ?? "",
+      document.extracted_text ?? "",
+    ].join(" ");
+
+    const lumperAmount = extractExactLineAmount(searchableText, "Lumper");
+    const detentionAmount = extractExactLineAmount(searchableText, "Detention");
+
+    return total + lumperAmount + detentionAmount;
   }, 0);
 }
 
@@ -597,7 +630,7 @@ function getAccessorialAmountAtRisk(
   return findLabeledAmount(candidateText, keywords);
 }
 
-function generateReadinessReport(documents: UploadedDocument[]) {
+  function generateReadinessReport(documents: UploadedDocument[]) {
   const blockers: BillingBlockerInput[] = [];
 
   let score = 0;
@@ -826,6 +859,8 @@ const detentionAmount = getAccessorialAmountAtRisk(
   };
 }
 
+
+
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -857,6 +892,8 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
+ 
 
   for (const file of files) {
     if (file.size > maxFileSize) {
@@ -931,6 +968,8 @@ export async function POST(request: Request) {
 
   const uploadedDocuments: UploadedDocument[] = [];
 
+  
+
   for (const file of files) {
     const safeFileName = sanitizeFileName(file.name);
     const storagePath = `${organizationId}/${packet.id}/${Date.now()}-${safeFileName}`;
@@ -940,6 +979,7 @@ export async function POST(request: Request) {
     const fileBuffer = Buffer.from(arrayBuffer);
 
     let extractedText = "";
+    
 
 try {
   extractedText = await extractDocumentTextFromBuffer(
@@ -974,8 +1014,14 @@ try {
 
     
 
-const documentDetection = detectDocumentType(file.name, extractedText);
-const parsedValues = parseDocumentValues(file.name, extractedText);
+   const documentDetection = detectDocumentType(file.name, extractedText);
+      const parsedValues = parseDocumentValues(file.name, extractedText);
+
+
+
+
+
+
 
 const { data: document, error: documentError } = await supabase
   .from("shipment_documents")
@@ -988,9 +1034,10 @@ const { data: document, error: documentError } = await supabase
     mime_type: file.type || null,
     document_type: documentDetection.documentType,
     confidence: documentDetection.confidence,
+    extracted_text: extractedText,
   })
       .select(
-        "id, packet_id, organization_id, file_name, file_path, file_size, mime_type, document_type, confidence, created_at"
+       "id, packet_id, organization_id, file_name, file_path, file_size, mime_type, document_type, confidence, extracted_text, created_at"
       )
       .single();
 
@@ -1009,6 +1056,20 @@ const { data: document, error: documentError } = await supabase
   }
 
   const readinessReport = generateReadinessReport(uploadedDocuments);
+
+  const invoiceTotal =
+  getFirstParsedAmount(uploadedDocuments, "invoice_total", "invoice") ?? 0;
+
+  const accessorialTotal = sumAccessorialAmounts(uploadedDocuments);
+
+  const riskyStatuses = new Set(["blocked", "needs_review", "failed"]);
+
+  const normalizedStatus = readinessReport.status?.toLowerCase() ?? "needs_review";
+
+  const revenueAtRisk = riskyStatuses.has(normalizedStatus)
+  ? accessorialTotal || invoiceTotal
+  : 0;
+  
 
   const { data: report, error: reportError } = await supabase
     .from("analysis_reports")
@@ -1063,41 +1124,44 @@ const { data: document, error: documentError } = await supabase
     }
   }
 
-  const { error: packetUpdateError } = await supabase
-    .from("shipment_packets")
-    .update({
-      status: readinessReport.status,
-      readiness_score: readinessReport.score,
-      payment_delay_risk: readinessReport.paymentDelayRisk,
-      revenue_at_risk:
-        readinessReport.status === "ready_to_bill" ? 0 : null,
-    })
-    .eq("id", packet.id)
-    .eq("organization_id", organizationId);
+  
 
-  if (packetUpdateError) {
-    return NextResponse.json(
-      { error: packetUpdateError.message },
-      { status: 500 }
-    );
-  }
+  const { data: updatedPacket, error: packetUpdateError } = await supabase
+  .from("shipment_packets")
+  .update({
+    status: readinessReport.status,
+    readiness_score: readinessReport.score,
+    payment_delay_risk: readinessReport.paymentDelayRisk,
+    invoice_total: invoiceTotal,
+    accessorial_total: accessorialTotal,
+    revenue_at_risk: revenueAtRisk,
+  })
+  .eq("id", packet.id)
+  .select(
+    "id, organization_id, load_number, status, created_at, readiness_score, payment_delay_risk, invoice_total, accessorial_total, revenue_at_risk"
+  )
+  .single();
+
+if (packetUpdateError) {
+  return NextResponse.json(
+    { error: packetUpdateError.message },
+    { status: 500 }
+  );
+}
 
   await supabase
     .from("organizations")
     .update({
       packets_used_this_month: workspace.packets_used_this_month + 1,
+      
+
     })
     .eq("id", organizationId);
 
-  return NextResponse.json({
-    packet: {
-      ...packet,
-      status: readinessReport.status,
-      readiness_score: readinessReport.score,
-      payment_delay_risk: readinessReport.paymentDelayRisk,
-    },
-    report,
-    review: {
+     return NextResponse.json({
+     packet: updatedPacket,
+     report,
+     review: {
       score: readinessReport.score,
       status: readinessReport.status,
       paymentDelayRisk: readinessReport.paymentDelayRisk,
