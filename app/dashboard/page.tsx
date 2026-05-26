@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import RecentReports from "./recent-reports";
+import type { ReactNode } from "react";
+
 import {
   AlertTriangle,
   ArrowRight,
@@ -157,7 +160,7 @@ export default async function DashboardPage() {
                 className="rounded-xl border-white/15 bg-white/5 text-white hover:bg-white/10"
               >
                 <Link href="/report">
-                  View demo report
+                  Generate report
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -248,9 +251,9 @@ export default async function DashboardPage() {
                     variant="outline"
                     className="rounded-xl border-white/15 bg-white/5 text-white hover:bg-white/10"
                   >
-                    <Link href={`/report?packet=${packet.id}`}>
-                      View report
-                    </Link>
+                    <Link href={`/report?packetId=${packet.id}`}>
+                     View report
+                      </Link>
                   </Button>
                 </div>
               ))
@@ -331,6 +334,7 @@ export default async function DashboardPage() {
           </div>
         </aside>
       </section>
+      <RecentReports />
     </main>
   );
 }
@@ -345,7 +349,7 @@ function MetricCard({
   title: string;
   value: string | number;
   caption: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   accent: "emerald" | "amber" | "red" | "sky";
 }) {
   const accentClasses = {
