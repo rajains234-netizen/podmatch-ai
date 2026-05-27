@@ -3,6 +3,7 @@ import { isAiPipelineEnabled } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
 import { PDFParse } from "pdf-parse";
 export const runtime = "nodejs";
+import { processPacketTask } from "@/trigger/process-packet";
 
 const bucketName = "shipment-documents";
 const maxFileSize = 10 * 1024 * 1024;
@@ -1060,9 +1061,32 @@ const { data: document, error: documentError } = await supabase
   }
 
   if (isAiPipelineEnabled()) {
-  // Future path: queue Trigger.dev packet processing job here.
-  // For now, fall through to the existing rule-based analysis so behavior remains unchanged.
- }
+  await supabase
+    .from("shipment_packets")
+    .update({
+      processing_status: "queued",
+      processing_error: null,
+      parser_provider: "llamaparse",
+      ai_model_name: null,
+    })
+    .eq("id", packet.id);
+
+  await processPacketTask.trigger({
+    packetId: packet.id,
+    organizationId,
+  });
+
+  return NextResponse.json({
+    packet: {
+      ...packet,
+      processing_status: "queued",
+    },
+    report: null,
+    documents: uploadedDocuments,
+    processing_status: "queued",
+    message: "Packet uploaded and queued for AI processing.",
+  });
+}
 
   const readinessReport = generateReadinessReport(uploadedDocuments);
 
