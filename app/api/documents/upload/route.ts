@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isAiPipelineEnabled } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
 import { PDFParse } from "pdf-parse";
 export const runtime = "nodejs";
@@ -1057,6 +1058,11 @@ const { data: document, error: documentError } = await supabase
   parsed_values: parsedValues,
 });
   }
+
+  if (isAiPipelineEnabled()) {
+  // Future path: queue Trigger.dev packet processing job here.
+  // For now, fall through to the existing rule-based analysis so behavior remains unchanged.
+ }
 
   const readinessReport = generateReadinessReport(uploadedDocuments);
 
