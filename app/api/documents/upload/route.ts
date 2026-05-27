@@ -949,11 +949,14 @@ export async function POST(request: Request) {
   const { data: packet, error: packetError } = await supabase
     .from("shipment_packets")
     .insert({
-      organization_id: organizationId,
-      created_by: user.id,
-      load_number: loadNumber,
-      status: "uploaded",
-    })
+    organization_id: organizationId,
+    created_by: user.id,
+    load_number: loadNumber,
+    status: "uploaded",
+    processing_status: "processing",
+    processing_started_at: new Date().toISOString(),
+    parser_provider: "pdfjs-dist",
+})
     .select(
       "id, organization_id, load_number, status, created_at, readiness_score, payment_delay_risk"
     )
@@ -1135,6 +1138,10 @@ const { data: document, error: documentError } = await supabase
     invoice_total: invoiceTotal,
     accessorial_total: accessorialTotal,
     revenue_at_risk: revenueAtRisk,
+    processing_status: "completed",
+    processing_completed_at: new Date().toISOString(),
+    ai_model_name: "document-rules-v2",
+    parser_provider: "pdfjs-dist",
   })
   .eq("id", packet.id)
   .select(
