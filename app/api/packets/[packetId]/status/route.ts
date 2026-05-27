@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const { data: packet, error: packetError } = await supabase
     .from("shipment_packets")
     .select(
-      "id, organization_id, load_number, status, readiness_score, payment_delay_risk, processing_status, processing_error, created_at"
+      "id, organization_id, created_by, load_number, status, readiness_score, payment_delay_risk, processing_status, processing_error, created_at"
     )
     .eq("id", packetId)
     .single();
@@ -36,15 +36,32 @@ export async function GET(_request: Request, context: RouteContext) {
     );
   }
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("organization_id", packet.organization_id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  if (packet.created_by !== user.id) {
+    const { data: membership, error: membershipError } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .eq("organization_id", packet.organization_id)
+      .maybeSingle();
 
-  if (membershipError || !membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (membershipError) {
+      return NextResponse.json(
+        { error: membershipError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!membership) {
+      return NextResponse.json(
+        {
+          error: "Forbidden",
+          details:
+            "Current user is not the packet creator or a member of this packet's organization.",
+          packet_organization_id: packet.organization_id,
+        },
+        { status: 403 }
+      );
+    }
   }
 
   const { data: report } = await supabase
